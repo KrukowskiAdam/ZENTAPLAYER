@@ -1,0 +1,82 @@
+{
+  "name": "zentaplayer",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "dev": "tsc -p tsconfig.main.json && concurrently -k \"vite --config vite.renderer.config.ts\" \"wait-on http://localhost:5173 && electron .\"",
+    "build": "tsc -p tsconfig.main.json && vite build --config vite.renderer.config.ts",
+    "dist": "npm run build && electron-builder --mac --arm64",
+    "dist:universal": "npm run build && electron-builder --mac --universal",
+    "dist:arm": "npm run build && electron-builder --mac --arm64",
+    "dist:x64": "npm run build && electron-builder --mac --x64",
+    "dist:win": "npm run build && electron-builder --win --x64"
+  },
+  "build": {
+    "appId": "com.zentaplayer.app",
+    "productName": "ZentaPlayer",
+    "copyright": "Copyright © 2026",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.music",
+      "icon": "assets/icon.icns",
+      "identity": null,
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    },
+    "dmg": {
+      "title": "ZentaPlayer",
+      "window": {
+        "width": 540,
+        "height": 380
+      }
+    }
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^25.8.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "concurrently": "^9.2.1",
+    "electron": "^41.6.1",
+    "electron-builder": "^26.8.1",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.13",
+    "wait-on": "^9.0.10"
+  },
+  "dependencies": {
+    "audiomotion-analyzer": "^4.5.4",
+    "music-metadata": "^11.12.3",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "wavesurfer.js": "^7.12.7"
+  }
+}
