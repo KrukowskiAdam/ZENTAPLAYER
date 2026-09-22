@@ -1,5 +1,5 @@
 {
-  "name": "zentaplayer",
+  "name": "espressoplayer",
   "version": "1.0.0",
   "description": "",
   "main": "dist/main/main.js",
@@ -10,11 +10,13 @@
     "dist:universal": "npm run build && electron-builder --mac --universal",
     "dist:arm": "npm run build && electron-builder --mac --arm64",
     "dist:x64": "npm run build && electron-builder --mac --x64",
-    "dist:win": "npm run build && electron-builder --win --x64"
+    "dist:win": "npm run build && electron-builder --win --x64",
+    "dist:mas": "npm run build && electron-builder --mac mas",
+    "dist:release": "npm run build && APPLE_KEYCHAIN_PROFILE=espresso-notary electron-builder --mac --arm64 --x64"
   },
   "build": {
-    "appId": "com.zentaplayer.app",
-    "productName": "ZentaPlayer",
+    "appId": "com.espressoplayer.app",
+    "productName": "Espresso Player",
     "copyright": "Copyright © 2026",
     "directories": {
       "output": "release"
@@ -26,21 +28,27 @@
     "mac": {
       "category": "public.app-category.music",
       "icon": "assets/icon.icns",
-      "identity": null,
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
       "target": [
         {
           "target": "dmg",
           "arch": [
-            "universal"
+            "arm64",
+            "x64"
           ]
         }
       ]
     },
     "win": {
+      "icon": "assets/icon.ico",
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
@@ -50,11 +58,24 @@
       "createDesktopShortcut": true
     },
     "dmg": {
-      "title": "ZentaPlayer",
+      "title": "Espresso Player",
       "window": {
         "width": 540,
         "height": 380
       }
+    },
+    "mas": {
+      "category": "public.app-category.music",
+      "icon": "assets/icon.icns",
+      "hardenedRuntime": false,
+      "entitlements": "build/entitlements.mas.plist",
+      "entitlementsInherit": "build/entitlements.mas.inherit.plist",
+      "extraResources": [
+        {
+          "from": "resources/mas/ffmpeg",
+          "to": "ffmpeg"
+        }
+      ]
     }
   },
   "keywords": [],
@@ -75,8 +96,10 @@
   "dependencies": {
     "audiomotion-analyzer": "^4.5.4",
     "music-metadata": "^11.12.3",
+    "node-id3": "^0.2.9",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "react-iconly": "^2.2.10",
     "wavesurfer.js": "^7.12.7"
   }
 }

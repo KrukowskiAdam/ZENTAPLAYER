@@ -1,0 +1,424 @@
+#!/bin/bash
+
+# LGPL-only fork of https://github.com/mifi/ffmpeg-build-script (itself a fork of
+# https://github.com/markus-perl/ffmpeg-build-script), for resources/mas/ffmpeg —
+# the ffmpeg binary bundled into the Mac App Store build (see package.json →
+# build.mas.extraResources). The upstream script enables --enable-gpl,
+# --enable-nonfree and libx264, which makes the whole compiled binary GPL —
+# incompatible with the App Store's redistribution terms — even though this app
+# only ever needs audio (FLAC/WAV decode, MP3 encode), never any video codec.
+#
+# Changes from upstream:
+#   - removed: x264, libvpx, libwebp, dav1d, svtav1 (video codecs, unused, and
+#     x264 specifically is what forced --enable-gpl)
+#   - removed: openssl (unused — this app never has ffmpeg fetch a network URL)
+#   - removed: --enable-nonfree / --enable-gpl
+#   - added: libmp3lame (LGPL-2.0) — upstream never built it, but ffmpeg has no
+#     native MP3 *encoder* of its own, and this app's whole point in shelling
+#     out to ffmpeg is FLAC/WAV -> MP3 conversion
+#
+# Verified output: `ffmpeg -version` prints "License: LGPL version 3 or later".
+#
+# Rebuild: `./build-ffmpeg-lgpl --build`, needs Xcode CLT + `brew install nasm`.
+# Output lands at ./workspace/bin/ffmpeg — copy that to resources/mas/ffmpeg.
+# This produces an arm64 binary on Apple Silicon; a universal MAS build needs
+# an x64 run too (e.g. on an Intel runner or via cross-compile) combined with
+# `lipo -create`.
+
+# Min electron supported version
+# See also https://github.com/mifi/lossless-cut/blob/master/CONTRIBUTING.md
+export MACOSX_DEPLOYMENT_TARGET=12.0
+
+PROGNAME=$(basename "$0")
+FFMPEG_VERSION=8.0
+CWD=$(pwd)
+PACKAGES="$CWD/packages"
+WORKSPACE="$CWD/workspace"
+CFLAGS="-I$WORKSPACE/include"
+LDFLAGS="-L$WORKSPACE/lib"
+LDEXEFLAGS=""
+# -ldl and/or -lz seems to be needed by openssl on x64 mac
+EXTRALIBS="-ldl -lpthread -lm -lz"
+CONFIGURE_OPTIONS=()
+LATEST=false
+
+FFMPEG_URL="https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n$FFMPEG_VERSION.tar.gz"
+
+
+command_exists() {
+  if ! [[ -x $(command -v "$1") ]]; then
+    return 1
+  fi
+
+  return 0
+}
+
+if command_exists "clang++"; then
+  # e.g. macos
+  export CC=$(which clang)
+  export CXX=$(which clang++)
+elif command_exists "g++"; then
+  export CC=$(which gcc)
+  export CXX=$(which g++)
+else
+  echo "No suitable C/C++ compiler found. Install clang (Xcode) or g++."
+  exit 1
+fi
+
+# Not sure if this is needed anymore
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  # Check for Apple Silicon
+  if [[ "$(uname -m)" == "arm64" ]]; then
+    # If arm64 AND darwin (macOS)
+    export ARCH=arm64
+  else
+    export ARCH=x86_64
+  fi
+
+  export CC="$CC -arch $ARCH"
+  export CFLAGS="$CFLAGS -arch $ARCH"
+  export LDFLAGS="$LDFLAGS -arch $ARCH"
+fi
+
+# Speed up the process
+# Env Var NUMJOBS overrides automatic detection
+if [[ -n "$NUMJOBS" ]]; then
+  MJOBS="$NUMJOBS"
+elif [[ -f /proc/cpuinfo ]]; then
+  MJOBS=$(grep -c processor /proc/cpuinfo)
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+  MJOBS=$(sysctl -n machdep.cpu.thread_count)
+  CONFIGURE_OPTIONS=("--enable-videotoolbox")
+  MACOS_LIBTOOL="$(which libtool)" # gnu libtool is installed in this script and need to avoid name conflict
+else
+  MJOBS=4
+fi
+
+make_dir() {
+  remove_dir "$1"
+  if ! mkdir "$1"; then
+    printf "\n Failed to create dir %s" "$1"
+    exit 1
+  fi
+}
+
+remove_dir() {
+  if [ -d "$1" ]; then
+    rm -r "$1"
+  fi
+}
+
+download() {
+  # download url [filename[dirname]]
+
+  DOWNLOAD_PATH="$PACKAGES"
+  DOWNLOAD_FILE="${2:-"${1##*/}"}"
+
+  if [[ "$DOWNLOAD_FILE" =~ tar. ]]; then
+    TARGETDIR="${DOWNLOAD_FILE%.*}"
+    TARGETDIR="${3:-"${TARGETDIR%.*}"}"
+  else
+    TARGETDIR="${3:-"${DOWNLOAD_FILE%.*}"}"
+  fi
+
+  if [ ! -f "$DOWNLOAD_PATH/$DOWNLOAD_FILE" ]; then
+    echo "Downloading $1 as $DOWNLOAD_FILE"
+    curl -L --silent -o "$DOWNLOAD_PATH/$DOWNLOAD_FILE" "$1"
+
+    EXITCODE=$?
+    if [ $EXITCODE -ne 0 ]; then
+      echo ""
+      echo "Failed to download $1. Exitcode $EXITCODE. Retrying in 10 seconds"
+      sleep 10
+      curl -L --silent -o "$DOWNLOAD_PATH/$DOWNLOAD_FILE" "$1"
+    fi
+
+    EXITCODE=$?
+    if [ $EXITCODE -ne 0 ]; then
+      echo ""
+      echo "Failed to download $1. Exitcode $EXITCODE"
+      exit 1
+    fi
+
+    echo "... Done"
+  else
+    echo "$DOWNLOAD_FILE has already downloaded."
+  fi
+
+  make_dir "$DOWNLOAD_PATH/$TARGETDIR"
+
+  if [[ "$DOWNLOAD_FILE" == *"patch"* ]]; then
+    return
+  fi
+
+  if [ -n "$3" ]; then
+    if ! tar -xvf "$DOWNLOAD_PATH/$DOWNLOAD_FILE" -C "$DOWNLOAD_PATH/$TARGETDIR" 2>/dev/null >/dev/null; then
+      echo "Failed to extract $DOWNLOAD_FILE"
+      exit 1
+    fi
+  else
+    if ! tar -xvf "$DOWNLOAD_PATH/$DOWNLOAD_FILE" -C "$DOWNLOAD_PATH/$TARGETDIR" --strip-components 1 2>/dev/null >/dev/null; then
+      echo "Failed to extract $DOWNLOAD_FILE"
+      exit 1
+    fi
+  fi
+
+  echo "Extracted $DOWNLOAD_FILE"
+
+  cd "$DOWNLOAD_PATH/$TARGETDIR" || (
+    echo "Error has occurred."
+    exit 1
+  )
+}
+
+execute() {
+  echo "$ $*"
+
+  OUTPUT=$("$@" 2>&1)
+
+  # shellcheck disable=SC2181
+  if [ $? -ne 0 ]; then
+    echo "$OUTPUT"
+    echo ""
+    echo "Failed to Execute $*" >&2
+    exit 1
+  fi
+}
+
+build() {
+  echo ""
+  echo "building $1 - version $2"
+  echo "======================="
+  CURRENT_PACKAGE_VERSION=$2
+
+  if [ -f "$PACKAGES/$1.done" ]; then
+    if grep -Fx "$2" "$PACKAGES/$1.done" >/dev/null; then
+      echo "$1 version $2 already built. Remove $PACKAGES/$1.done lockfile to rebuild it."
+      return 1
+    elif $LATEST; then
+      echo "$1 is outdated and will be rebuilt with latest version $2"
+      return 0
+    else
+      echo "$1 is outdated, but will not be rebuilt. Pass in --latest to rebuild it or remove $PACKAGES/$1.done lockfile."
+      return 1
+    fi
+  fi
+
+  return 0
+}
+
+library_exists() {
+  if ! [[ -x $(pkg-config --exists --print-errors "$1" 2>&1 >/dev/null) ]]; then
+    return 1
+  fi
+
+  return 0
+}
+
+build_done() {
+  echo "$2" > "$PACKAGES/$1.done"
+}
+
+verify_binary_type() {
+  if ! command_exists "file"; then
+    return
+  fi
+
+  BINARY_TYPE=$(file "$WORKSPACE/bin/ffmpeg" | sed -n 's/^.*\:\ \(.*$\)/\1/p')
+  echo ""
+  case $BINARY_TYPE in
+  "Mach-O 64-bit executable arm64")
+    echo "Successfully built Apple Silicon for ${OSTYPE}: ${BINARY_TYPE}"
+    ;;
+  *)
+    echo "Successfully built binary for ${OSTYPE}: ${BINARY_TYPE}"
+    ;;
+  esac
+}
+
+cleanup() {
+  remove_dir "$PACKAGES"
+  remove_dir "$WORKSPACE"
+  echo "Cleanup done."
+  echo ""
+}
+
+usage() {
+  echo "Usage: $PROGNAME [OPTIONS]"
+  echo "Options:"
+  echo "  -h, --help                     Display usage information"
+  echo "      --version                  Display version information"
+  echo "  -b, --build                    Starts the build process"
+  echo "  -c, --cleanup                  Remove all working dirs"
+  echo "      --latest                   Build latest version of dependencies if newer available"
+  echo ""
+}
+
+echo "ffmpeg-build-script"
+echo "========================="
+echo ""
+
+while (($# > 0)); do
+  case $1 in
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  -*)
+    if [[ "$1" == "--build" || "$1" =~ '-b' ]]; then
+      bflag='-b'
+    fi
+    if [[ "$1" == "--cleanup" || "$1" =~ '-c' && ! "$1" =~ '--' ]]; then
+      cflag='-c'
+      cleanup
+    fi
+    if [[ "$1" == "--latest" ]]; then
+      LATEST=true
+    fi
+    shift
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+  esac
+done
+
+if [ -z "$bflag" ]; then
+  if [ -z "$cflag" ]; then
+    usage
+    exit 1
+  fi
+  exit 0
+fi
+
+echo "Using $MJOBS make jobs simultaneously."
+
+if [ -n "$LDEXEFLAGS" ]; then
+  echo "Start the build in full static mode."
+fi
+
+mkdir -p "$PACKAGES"
+mkdir -p "$WORKSPACE"
+
+export PATH="${WORKSPACE}/bin:$PATH"
+PKG_CONFIG_PATH="$WORKSPACE/lib/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig"
+PKG_CONFIG_PATH+=":/usr/local/share/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig:/usr/lib64/pkgconfig"
+export PKG_CONFIG_PATH
+
+if ! command_exists "make"; then
+  echo "make not installed."
+  exit 1
+fi
+
+if ! command_exists "g++"; then
+  echo "g++ not installed."
+  exit 1
+fi
+
+if ! command_exists "curl"; then
+  echo "curl not installed."
+  exit 1
+fi
+
+if ! command_exists "pkg-config"; then
+  echo "pkg-config not installed."
+  exit 1
+fi
+
+if ! command_exists "cargo"; then
+  echo "cargo not installed. rav1e encoder will not be available."
+fi
+
+if ! command_exists "python3"; then
+  echo "python3 command not found. Lv2 filter and dav1d decoder will not be available."
+fi
+
+##
+## build tools
+##
+
+# needed by openssl?
+if build "zlib" "1.3.1"; then
+  download "https://github.com/madler/zlib/releases/download/v$CURRENT_PACKAGE_VERSION/zlib-$CURRENT_PACKAGE_VERSION.tar.gz"
+  execute ./configure --static --prefix="${WORKSPACE}"
+  execute make -j $MJOBS
+  execute make install
+  build_done "zlib" $CURRENT_PACKAGE_VERSION
+fi
+
+##
+## Codecs
+##
+## LGPL-only build: no x264/libvpx/libwebp/dav1d/svtav1 (all video codecs —
+## unused by this app anyway, and x264 in particular is what forces
+## --enable-gpl on the whole ffmpeg binary). The only codec this app actually
+## needs beyond ffmpeg's built-ins is an MP3 *encoder* — ffmpeg has no native
+## one, so libmp3lame (LGPL-2.0) is required for FLAC/WAV -> MP3 conversion.
+
+if build "lame" "3.100"; then
+  download "https://downloads.sourceforge.net/project/lame/lame/$CURRENT_PACKAGE_VERSION/lame-$CURRENT_PACKAGE_VERSION.tar.gz" "lame-$CURRENT_PACKAGE_VERSION.tar.gz"
+  execute ./configure --prefix="${WORKSPACE}" --disable-shared --enable-static --enable-nasm
+  execute make -j $MJOBS
+  execute make install
+  build_done "lame" $CURRENT_PACKAGE_VERSION
+fi
+CONFIGURE_OPTIONS+=("--enable-libmp3lame")
+
+##
+## FFmpeg
+##
+
+EXTRA_VERSION=""
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  EXTRA_VERSION="${FFMPEG_VERSION}"
+fi
+
+
+build "ffmpeg" "$FFMPEG_VERSION"
+download "${FFMPEG_URL}" "FFmpeg-release-$FFMPEG_VERSION.tar.gz"
+# shellcheck disable=SC2086
+./configure "${CONFIGURE_OPTIONS[@]}" \
+  --disable-debug \
+  --disable-doc \
+  --disable-shared \
+  --enable-pthreads \
+  --enable-static \
+  --enable-version3 \
+  --extra-cflags="${CFLAGS}" \
+  --extra-ldexeflags="${LDEXEFLAGS}" \
+  --extra-ldflags="${LDFLAGS}" \
+  --extra-libs="${EXTRALIBS}" \
+  --pkgconfigdir="$WORKSPACE/lib/pkgconfig" \
+  --pkg-config-flags="--static" \
+  --prefix="${WORKSPACE}" \
+  --extra-version="${EXTRA_VERSION}" \
+	\
+	--disable-securetransport \
+	--disable-ffplay \
+	--disable-lzma \
+	--enable-runtime-cpudetect \
+	--enable-avfilter \
+	--enable-filters \
+	\
+  --disable-xlib \
+  --disable-libxcb-shm \
+  --disable-libxcb-xfixes \
+  --disable-libxcb-shape \
+  --disable-outdevs \
+  --disable-indevs \
+  --enable-indev=lavfi \
+
+
+execute make -j $MJOBS
+execute make install
+
+verify_binary_type
+
+echo ""
+echo "Building done. The following binaries can be found here:"
+echo "- ffmpeg: $WORKSPACE/bin/ffmpeg"
+echo "- ffprobe: $WORKSPACE/bin/ffprobe"
+echo ""
+
+exit 0
