@@ -1,7 +1,7 @@
 {
   "name": "espressoplayer",
   "version": "1.0.0",
-  "description": "",
+  "description": "A free, offline-first desktop music player with a playlist manager, loop editor/tuner, FLAC/WAV to MP3 conversion, and internet radio.",
   "main": "dist/main/main.js",
   "scripts": {
     "dev": "tsc -p tsconfig.main.json && concurrently -k \"vite --config vite.renderer.config.ts\" \"wait-on http://localhost:5173 && electron .\"",
@@ -78,9 +78,9 @@
       ]
     }
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": ["music-player", "electron", "flac", "mp3", "audio"],
+  "author": "Adam Krukowski",
+  "license": "MIT",
   "devDependencies": {
     "@types/node": "^25.8.0",
     "@types/react": "^19.2.14",
