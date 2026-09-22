@@ -6,13 +6,13 @@
   "scripts": {
     "dev": "tsc -p tsconfig.main.json && concurrently -k \"vite --config vite.renderer.config.ts\" \"wait-on http://localhost:5173 && electron .\"",
     "build": "tsc -p tsconfig.main.json && vite build --config vite.renderer.config.ts",
-    "dist": "npm run build && electron-builder --mac --arm64",
-    "dist:universal": "npm run build && electron-builder --mac --universal",
-    "dist:arm": "npm run build && electron-builder --mac --arm64",
-    "dist:x64": "npm run build && electron-builder --mac --x64",
-    "dist:win": "npm run build && electron-builder --win --x64",
-    "dist:mas": "npm run build && electron-builder --mac mas",
-    "dist:release": "npm run build && APPLE_KEYCHAIN_PROFILE=espresso-notary electron-builder --mac --arm64 --x64"
+    "dist": "npm run build && electron-builder --mac --arm64 --publish=never",
+    "dist:universal": "npm run build && electron-builder --mac --universal --publish=never",
+    "dist:arm": "npm run build && electron-builder --mac --arm64 --publish=never",
+    "dist:x64": "npm run build && electron-builder --mac --x64 --publish=never",
+    "dist:win": "npm run build && electron-builder --win --x64 --publish=never",
+    "dist:mas": "npm run build && electron-builder --mac mas --publish=never",
+    "dist:release": "npm run build && APPLE_KEYCHAIN_PROFILE=espresso-notary electron-builder --mac --arm64 --x64 --publish=never"
   },
   "build": {
     "appId": "com.espressoplayer.app",
