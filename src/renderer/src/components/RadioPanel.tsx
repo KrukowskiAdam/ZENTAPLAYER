@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { ChevronDown, Play, Voice2, Heart, CloseSquare } from 'react-iconly'
 
 function CustomSelect({ value, onChange, options, placeholder }: {
   value: string
@@ -22,7 +23,7 @@ function CustomSelect({ value, onChange, options, placeholder }: {
     <div ref={ref} style={{ position: 'relative' }}>
       <button style={sel.trigger} onClick={() => setOpen((o) => !o)}>
         <span style={sel.triggerLabel}>{value || placeholder}</span>
-        <span style={sel.arrow}>▾</span>
+        <span style={sel.arrow}><ChevronDown set="light" size={11} primaryColor="currentColor" /></span>
       </button>
       {open && (
         <div style={sel.dropdown}>
@@ -49,10 +50,10 @@ const sel: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: 4,
-    background: 'var(--bg-base)',
-    border: '1px solid var(--border-bright)',
+    background: 'var(--bg-content-alt)',
+    border: '1px solid var(--content-border)',
     borderRadius: 4,
-    color: 'var(--text-secondary)',
+    color: 'var(--content-text-secondary)',
     fontSize: 10,
     fontFamily: 'var(--font-mono)',
     padding: '4px 6px',
@@ -63,28 +64,28 @@ const sel: Record<string, React.CSSProperties> = {
     flex: 1,
   },
   arrow: {
-    opacity: 0.5,
-    fontSize: 9,
+    display: 'flex',
+    opacity: 0.6,
   },
   dropdown: {
     position: 'absolute' as const,
     top: '100%',
     left: 0,
     marginTop: 2,
-    background: 'var(--bg-hover)',
-    border: '1px solid var(--border-bright)',
+    background: 'var(--bg-content)',
+    border: '1px solid var(--content-border)',
     borderRadius: 4,
     zIndex: 200,
     maxHeight: 180,
     overflowY: 'auto' as const,
     minWidth: '100%',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
   },
   option: {
     padding: '5px 10px',
     fontSize: 10,
     fontFamily: 'var(--font-mono)',
-    color: 'var(--text-secondary)',
+    color: 'var(--content-text-secondary)',
     cursor: 'pointer',
     whiteSpace: 'nowrap' as const,
   },
@@ -143,18 +144,32 @@ export default function RadioPanel({ onPlayStream }: { onPlayStream: (url: strin
 
   const current = stations[index] ?? null
 
+  useEffect(() => {
+    setStations([])
+    setIndex(0)
+  }, [country, genre])
+
   const fetchAndPlay = useCallback(async (startIndex = 0) => {
     setLoading(true)
     setError('')
     try {
-      const params = new URLSearchParams({ limit: '30', hidebroken: 'true', order: 'random' })
+      // order=random on the Radio Browser API is not actually randomized per-request —
+      // the same query returns the same stations in the same order every time (server-side
+      // caching). Fetch a larger pool and shuffle it ourselves so "Random" is actually random.
+      const params = new URLSearchParams({ limit: '100', hidebroken: 'true' })
       if (country) params.set('country', country)
       if (genre) params.set('tag', genre)
-      const res = await fetch(`https://de1.api.radio-browser.info/json/stations/search?${params}`)
+      // all.api.radio-browser.info round-robins across all healthy mirror servers instead
+      // of pinning to one (de1), which can go down or lag on its own.
+      const res = await fetch(`https://all.api.radio-browser.info/json/stations/search?${params}`)
       if (!res.ok) throw new Error('API error')
       const data: RadioStation[] = await res.json()
       const valid = data.filter((s) => s.url_resolved)
       if (!valid.length) { setError('no stations'); setLoading(false); return }
+      for (let i = valid.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[valid[i], valid[j]] = [valid[j], valid[i]]
+      }
       setStations(valid)
       setIndex(startIndex)
       onPlayStream(valid[startIndex].url_resolved, valid[startIndex].name)
@@ -196,7 +211,7 @@ export default function RadioPanel({ onPlayStream }: { onPlayStream: (url: strin
   return (
     <div style={styles.panel}>
       <div style={styles.heading}>
-        <span style={styles.headingIcon}>📻</span>
+        <span style={styles.headingIcon}><Voice2 set="light" size={28} primaryColor="currentColor" /></span>
         <div>
           <div style={styles.headingTitle}>Random Radio Explorer</div>
           <div style={styles.headingSubtitle}>30,000+ stations worldwide</div>
@@ -206,7 +221,7 @@ export default function RadioPanel({ onPlayStream }: { onPlayStream: (url: strin
         <CustomSelect value={country} onChange={setCountry} options={COUNTRIES} placeholder="Country" />
         <CustomSelect value={genre} onChange={setGenre} options={GENRES} placeholder="Genre" />
         <button style={styles.randomBtn} onClick={goNext} disabled={loading} title="Play random station">
-          {loading ? '...' : '▶ Random'}
+          {loading ? '...' : <><Play set="light" size={11} primaryColor="currentColor" /> Random</>}
         </button>
       </div>
 
@@ -226,7 +241,7 @@ export default function RadioPanel({ onPlayStream }: { onPlayStream: (url: strin
             onClick={toggleFavorite}
             title={isFavorite ? 'Remove from favorites' : 'Save to favorites'}
           >
-            ♥
+            <Heart set={isFavorite ? 'bold' : 'light'} size={14} primaryColor="currentColor" />
           </button>
         </div>
       )}
@@ -236,12 +251,14 @@ export default function RadioPanel({ onPlayStream }: { onPlayStream: (url: strin
           <div style={styles.favTitle}>FAVORITES</div>
           {favorites.map((fav) => (
             <div key={fav.uuid} style={styles.favRow} onClick={() => onPlayStream(fav.url, fav.name)}>
-              <span style={styles.favPlay}>▶</span>
+              <span style={styles.favPlay}><Play set="light" size={10} primaryColor="currentColor" /></span>
               <div style={styles.favInfo}>
                 <span style={styles.favName} title={fav.name}>{fav.name}</span>
                 <span style={styles.favMeta}>{[fav.country, fav.tags?.split(',')[0]?.trim()].filter(Boolean).join(' · ')}</span>
               </div>
-              <button style={styles.favRemove} onClick={(e) => { e.stopPropagation(); removeFavorite(fav.uuid) }} title="Remove">✕</button>
+              <button style={styles.favRemove} onClick={(e) => { e.stopPropagation(); removeFavorite(fav.uuid) }} title="Remove">
+                <CloseSquare set="light" size={11} primaryColor="currentColor" />
+              </button>
             </div>
           ))}
         </div>
@@ -258,6 +275,7 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
     padding: '12px 12px 0',
     gap: 10,
+    background: 'var(--bg-content)',
   },
   heading: {
     display: 'flex',
@@ -266,11 +284,12 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '4px 0 6px',
   },
   headingIcon: {
-    fontSize: 28,
-    lineHeight: 1,
+    display: 'flex',
     flexShrink: 0,
+    color: 'var(--accent)',
   },
   headingTitle: {
+    fontFamily: "'Michroma', var(--font)",
     fontSize: 15,
     fontWeight: 700,
     color: 'var(--accent)',
@@ -279,7 +298,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   headingSubtitle: {
     fontSize: 10,
-    color: 'var(--text-muted)',
+    color: 'var(--content-text-secondary)',
     fontFamily: 'var(--font-mono)',
     marginTop: 2,
   },
@@ -306,9 +325,9 @@ const styles: Record<string, React.CSSProperties> = {
   favBtn: {
     flexShrink: 0,
     background: 'transparent',
-    border: '1px solid var(--border-bright)',
+    border: '1px solid var(--content-border)',
     borderRadius: 4,
-    color: 'var(--text-muted)',
+    color: 'var(--content-text-secondary)',
     fontSize: 13,
     width: 28,
     height: 28,
@@ -324,7 +343,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   error: {
     fontSize: 11,
-    color: '#f87171',
+    color: 'var(--danger)',
     fontFamily: 'var(--font-mono)',
     padding: '4px 0',
   },
@@ -333,9 +352,9 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: 10,
     padding: '10px 12px',
-    background: 'var(--bg-hover)',
+    background: 'var(--bg-content-alt)',
     borderRadius: 5,
-    border: '1px solid var(--border)',
+    border: '1px solid var(--content-border)',
   },
   currentDot: {
     width: 8,
@@ -351,7 +370,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   currentName: {
     fontSize: 12,
-    color: 'var(--text-primary)',
+    color: 'var(--content-text)',
     fontWeight: 600,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
@@ -359,7 +378,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   currentMeta: {
     fontSize: 10,
-    color: 'var(--text-muted)',
+    color: 'var(--content-text-secondary)',
     fontFamily: 'var(--font-mono)',
     marginTop: 2,
     overflow: 'hidden',
@@ -378,7 +397,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: 'var(--font-mono)',
     fontWeight: 700,
     letterSpacing: '0.12em',
-    color: 'var(--text-muted)',
+    color: 'var(--content-text-secondary)',
     padding: '8px 0 4px',
     flexShrink: 0,
   },
@@ -387,15 +406,15 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: 6,
     padding: '5px 0',
-    borderBottom: '1px solid var(--border)',
+    borderBottom: '1px solid var(--content-border)',
     cursor: 'pointer',
   },
   favPlay: {
+    display: 'flex',
     background: 'transparent',
     border: 'none',
     color: 'var(--accent)',
     cursor: 'pointer',
-    fontSize: 10,
     flexShrink: 0,
     padding: '0 4px',
   },
@@ -407,22 +426,22 @@ const styles: Record<string, React.CSSProperties> = {
   },
   favName: {
     fontSize: 11,
-    color: 'var(--text-secondary)',
+    color: 'var(--content-text)',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },
   favMeta: {
     fontSize: 9,
-    color: 'var(--text-muted)',
+    color: 'var(--content-text-secondary)',
     fontFamily: 'var(--font-mono)',
   },
   favRemove: {
+    display: 'flex',
     background: 'transparent',
     border: 'none',
-    color: 'var(--text-muted)',
+    color: 'var(--content-text-secondary)',
     cursor: 'pointer',
-    fontSize: 10,
     flexShrink: 0,
     padding: '0 2px',
   },

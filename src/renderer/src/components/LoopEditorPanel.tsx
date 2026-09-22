@@ -1,8 +1,14 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import WaveSurfer from 'wavesurfer.js'
 import RegionsPlugin from 'wavesurfer.js/plugins/regions'
 import AudioMotionAnalyzer from 'audiomotion-analyzer'
+import { Voice } from 'react-iconly'
 import type { Track, PlayerState } from '../types'
+import { detectPitch, frequencyToNote, type PitchResult } from '../audio/pitch'
+
+function cssVar(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+}
 
 interface Props {
   track: Track | null
@@ -10,6 +16,15 @@ interface Props {
   onPlayerChange: (p: PlayerState | ((prev: PlayerState) => PlayerState)) => void
   onFinish?: () => void
 }
+
+// Phosphor-green VFD look (Sansui 9090 / Sony STR-6055 style) — the app's one
+// permanent waveform theme, scoped via #loop-editor[data-skin="vintage-green"]
+// in global.css. There used to be a switchable "Default" skin here; it was
+// removed because most of the rest of the app had already gone permanently
+// green too, so toggling it back produced a broken half-and-half look.
+const WAVE_COLOR = '#0f6b53'
+const PROGRESS_COLOR = '#39ffc0'
+const CURSOR_COLOR = '#baffe3'
 
 export default function LoopEditorPanel({ track, player, onPlayerChange, onFinish }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -23,6 +38,8 @@ export default function LoopEditorPanel({ track, player, onPlayerChange, onFinis
   const zoomRef = useRef(50)
   const vizContainerRef = useRef<HTMLDivElement>(null)
   const audioMotionRef = useRef<AudioMotionAnalyzer | null>(null)
+  const lastPitchAtRef = useRef(0)
+  const [pitch, setPitch] = useState<PitchResult | null>(null)
   playerRef.current = player
 
   const destroy = useCallback(() => {
@@ -41,6 +58,7 @@ export default function LoopEditorPanel({ track, player, onPlayerChange, onFinis
       URL.revokeObjectURL(blobUrlRef.current)
       blobUrlRef.current = null
     }
+    setPitch(null)
   }, [])
 
   useEffect(() => {
@@ -98,9 +116,9 @@ export default function LoopEditorPanel({ track, player, onPlayerChange, onFinis
     const ws = WaveSurfer.create({
       container: containerRef.current,
       media: audio,
-      waveColor: 'var(--waveform)',
-      progressColor: 'var(--waveform-prog)',
-      cursorColor: 'var(--cursor)',
+      waveColor: WAVE_COLOR,
+      progressColor: PROGRESS_COLOR,
+      cursorColor: CURSOR_COLOR,
       cursorWidth: 2,
       height: 'auto',
       normalize: true,
@@ -111,7 +129,7 @@ export default function LoopEditorPanel({ track, player, onPlayerChange, onFinis
 
     wsRef.current = ws
 
-    regions.enableDragSelection({ color: '#4ade8033' })
+    regions.enableDragSelection({ color: 'var(--accent-region)' })
 
     ws.on('ready', (duration) => {
       onPlayerChange((p) => ({ ...p, duration }))
@@ -145,6 +163,26 @@ export default function LoopEditorPanel({ track, player, onPlayerChange, onFinis
       if (p.loopEnabled && p.loopStart !== null && p.loopEnd !== null) {
         if (currentTime >= p.loopEnd) ws.setTime(p.loopStart)
       }
+
+      // Tuner only runs against a selected loop region — otherwise it's shown
+      // disabled in the UI, and there's nothing meaningful to analyze anyway.
+      const hasLoop = p.loopStart !== null && p.loopEnd !== null
+      if (!hasLoop || audio.paused) return
+      const now = performance.now()
+      if (now - lastPitchAtRef.current < 90) return
+      lastPitchAtRef.current = now
+
+      const buffer = ws.getDecodedData()
+      if (!buffer) return
+      const channelData = buffer.getChannelData(0)
+      const sampleRate = buffer.sampleRate
+      const windowSize = 4096
+      const center = Math.floor(currentTime * sampleRate)
+      const start = Math.max(0, center - windowSize / 2)
+      const end = Math.min(channelData.length, start + windowSize)
+      if (end - start < 1024) { setPitch(null); return }
+      const freq = detectPitch(channelData.subarray(start, end), sampleRate)
+      setPitch(freq ? frequencyToNote(freq) : null)
     })
 
     ws.on('finish', () => {
@@ -214,6 +252,7 @@ export default function LoopEditorPanel({ track, player, onPlayerChange, onFinis
     const ws = wsRef.current
     if (!ws || !ws.getDuration()) return
     ws.setTime(player.seekTo)
+    if (playerRef.current.playing && !ws.isPlaying()) ws.play()
     onPlayerChange((p) => ({ ...p, seekTo: null }))
   }, [player.seekTo])
 
@@ -255,6 +294,7 @@ export default function LoopEditorPanel({ track, player, onPlayerChange, onFinis
     if (player.loopStart === null && player.loopEnd === null) {
       loopRegionRef.current?.remove()
       loopRegionRef.current = null
+      setPitch(null)
     }
   }, [player.loopStart, player.loopEnd])
 
@@ -301,13 +341,16 @@ export default function LoopEditorPanel({ track, player, onPlayerChange, onFinis
       maxFreq: 20000,
     })
 
+    // audiomotion-analyzer draws on <canvas>, which can't resolve var(--x) the way a
+    // DOM element's style can — so the theme colors have to be read out as literal
+    // values here instead of referenced directly.
     motion.registerGradient('zenta', {
-      bgColor: '#0a0a0a',
+      bgColor: cssVar('--waveform-bg'),
       colorStops: [
-        { pos: 0,   color: '#052e16' },
-        { pos: 0.4, color: '#166534' },
-        { pos: 0.7, color: '#4ade80' },
-        { pos: 1,   color: '#bbf7d0' },
+        { pos: 0,   color: cssVar('--waveform-grad-1') },
+        { pos: 0.4, color: cssVar('--waveform-grad-2') },
+        { pos: 0.7, color: cssVar('--waveform-prog') },
+        { pos: 1,   color: cssVar('--waveform-grad-4') },
       ],
     })
     motion.gradient = 'zenta'
@@ -334,7 +377,9 @@ export default function LoopEditorPanel({ track, player, onPlayerChange, onFinis
       <div id="loop-editor" style={styles.panel}>
         <div id="loop-editor-header" style={styles.header}>
           <span style={styles.trackName}>{track.name}</span>
-          <span style={styles.streamBadge}>⚡ STREAM</span>
+          <span style={styles.streamBadge}>
+            <Voice set="light" size={10} primaryColor="currentColor" /> STREAM
+          </span>
           <span style={styles.streamUrl}>{track.path}</span>
         </div>
         <div style={styles.streamBody} ref={vizContainerRef} />
@@ -345,7 +390,7 @@ export default function LoopEditorPanel({ track, player, onPlayerChange, onFinis
   const hasLoop = player.loopStart !== null && player.loopEnd !== null
 
   return (
-    <div id="loop-editor" style={styles.panel}>
+    <div id="loop-editor" style={styles.panel} data-skin="vintage-green">
       <div id="loop-editor-header" style={styles.header}>
         <span style={styles.trackName}>{track.name}</span>
         {hasLoop && (
@@ -373,7 +418,38 @@ export default function LoopEditorPanel({ track, player, onPlayerChange, onFinis
           <span style={styles.hint}>drag on waveform to set loop</span>
         )}
       </div>
-      <div id="loop-editor-canvas" style={styles.canvas} ref={containerRef} />
+      <div id="loop-editor-body" style={styles.body}>
+        <div id="loop-editor-canvas" style={styles.canvas} ref={containerRef} />
+        <PitchTuner pitch={pitch} active={hasLoop} />
+      </div>
+    </div>
+  )
+}
+
+function PitchTuner({ pitch, active }: { pitch: PitchResult | null; active: boolean }) {
+  const cents = pitch?.cents ?? 0
+  const needlePct = 50 + Math.max(-50, Math.min(50, cents))
+  const inTune = active && pitch !== null && Math.abs(cents) <= 5
+
+  return (
+    <div id="pitch-tuner" style={{ ...styles.tuner, ...(active ? {} : styles.tunerDisabled) }}>
+      <div style={styles.tunerNote}>{active && pitch ? `${pitch.noteName}${pitch.octave}` : '—'}</div>
+      <div style={styles.tunerFreq}>{active && pitch ? `${pitch.frequency.toFixed(1)} Hz` : 'no loop'}</div>
+      <div style={styles.tunerMeter}>
+        <div style={styles.tunerMeterCenter} />
+        {active && pitch && (
+          <div
+            style={{
+              ...styles.tunerNeedle,
+              left: `${needlePct}%`,
+              background: inTune ? 'var(--accent)' : 'var(--warning)',
+            }}
+          />
+        )}
+      </div>
+      <div style={styles.tunerCents}>
+        {active && pitch ? `${cents > 0 ? '+' : ''}${cents}¢` : ''}
+      </div>
     </div>
   )
 }
@@ -456,6 +532,9 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--text-muted)',
   },
   streamBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
     fontSize: 10,
     fontFamily: 'var(--font-mono)',
     fontWeight: 700,
@@ -478,15 +557,80 @@ const styles: Record<string, React.CSSProperties> = {
   },
   streamBody: {
     flex: 1,
-    background: '#0a0a0a',
+    background: 'var(--waveform-bg)',
     overflow: 'hidden',
     minHeight: 0,
   },
+  body: {
+    flex: 1,
+    minHeight: 0,
+    display: 'flex',
+    overflow: 'hidden',
+  },
   canvas: {
     flex: 1,
+    minWidth: 0,
     minHeight: 0,
     height: '100%',
     overflow: 'hidden',
+  },
+  tuner: {
+    width: 130,
+    flexShrink: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    padding: '10px 12px',
+    background: 'var(--bg-panel)',
+    borderLeft: '1px solid var(--border)',
+    transition: 'opacity 0.15s',
+  },
+  tunerDisabled: {
+    opacity: 0.35,
+  },
+  tunerNote: {
+    fontFamily: 'var(--font-mono)',
+    fontSize: 26,
+    fontWeight: 700,
+    color: 'var(--text-primary)',
+    lineHeight: 1,
+  },
+  tunerFreq: {
+    fontFamily: 'var(--font-mono)',
+    fontSize: 10,
+    color: 'var(--text-muted)',
+  },
+  tunerMeter: {
+    position: 'relative',
+    width: '100%',
+    height: 6,
+    borderRadius: 3,
+    background: 'var(--bg-hover)',
+    border: '1px solid var(--border)',
+  },
+  tunerMeterCenter: {
+    position: 'absolute',
+    left: '50%',
+    top: -2,
+    bottom: -2,
+    width: 1,
+    background: 'var(--border-bright)',
+  },
+  tunerNeedle: {
+    position: 'absolute',
+    top: -2,
+    bottom: -2,
+    width: 3,
+    borderRadius: 2,
+    transform: 'translateX(-50%)',
+  },
+  tunerCents: {
+    fontFamily: 'var(--font-mono)',
+    fontSize: 10,
+    color: 'var(--text-secondary)',
+    minHeight: 12,
   },
   empty: {
     display: 'flex',
@@ -496,16 +640,16 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 10,
     width: '100%',
     height: '100%',
-    background: 'var(--bg-track)',
-    borderTop: '1px solid var(--border)',
+    background: 'var(--bg-content)',
+    borderTop: '1px solid var(--content-border)',
   },
   emptyIcon: {
     fontSize: 32,
-    opacity: 0.15,
-    color: 'var(--text-primary)',
+    opacity: 0.3,
+    color: 'var(--content-text)',
   },
   emptyText: {
     fontSize: 12,
-    color: 'var(--text-muted)',
+    color: 'var(--content-text-secondary)',
   },
 }

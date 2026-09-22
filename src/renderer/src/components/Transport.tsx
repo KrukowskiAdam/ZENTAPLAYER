@@ -1,4 +1,9 @@
+import { useRef } from 'react'
+import { VolumeUp, VolumeOff } from 'react-iconly'
+import { Play, Pause } from './icons'
 import type { PlayerState, PlayMode } from '../types'
+import knobUrl from '../assets/textures/knob.png'
+import brushedMetalUrl from '../assets/textures/brushed-metal.jpg'
 
 interface Props {
   player: PlayerState
@@ -30,11 +35,13 @@ export default function Transport({ player, onPlayerChange, isStream = false }: 
   const toggle = () => onPlayerChange((p) => ({ ...p, playing: !p.playing }))
 
   const toggleLoop = () =>
-    onPlayerChange((p) => ({
-      ...p,
-      loopEnabled: !p.loopEnabled,
-      ...(p.loopEnabled ? { loopStart: null, loopEnd: null } : {}),
-    }))
+    onPlayerChange((p) => {
+      if (p.loopEnabled) return { ...p, loopEnabled: false }
+      if (p.loopStart !== null && p.loopEnd !== null) return { ...p, loopEnabled: true }
+      if (!p.duration) return p
+      // No region selected on the waveform yet — loop the whole track
+      return { ...p, loopEnabled: true, loopStart: 0, loopEnd: p.duration }
+    })
 
   const cyclePlayMode = () =>
     onPlayerChange((p) => ({ ...p, playMode: PLAY_MODE_CYCLE[p.playMode] }))
@@ -50,13 +57,22 @@ export default function Transport({ player, onPlayerChange, isStream = false }: 
   const setSpeed = (s: number) =>
     onPlayerChange((p) => ({ ...p, speed: Math.round(s * 100) / 100 }))
 
+  const isMuted = player.volume === 0
+  const prevVolumeRef = useRef(player.volume || 0.7)
+  if (player.volume > 0) prevVolumeRef.current = player.volume
+
+  const toggleMute = () =>
+    onPlayerChange((p) => ({ ...p, volume: isMuted ? prevVolumeRef.current : 0 }))
+
   const progress = player.duration ? player.currentTime / player.duration : 0
 
   return (
     <div id="transport-bar" style={styles.bar}>
       <div id="transport-left" style={styles.left}>
-        <button id="transport-play" style={styles.bigBtn} onClick={toggle}>
-          {player.playing ? '⏸' : '▶'}
+        <button id="transport-play" style={styles.bigBtn} onClick={toggle} title={player.playing ? 'Pause' : 'Play'}>
+          {player.playing
+            ? <Pause size={15} color="currentColor" />
+            : <Play size={15} color="currentColor" />}
         </button>
         {!isStream && (
           <>
@@ -65,9 +81,17 @@ export default function Transport({ player, onPlayerChange, isStream = false }: 
               style={{
                 ...styles.btn,
                 ...(player.loopEnabled && player.loopStart !== null ? styles.btnActive : {}),
+                ...(!player.duration ? styles.btnDisabled : {}),
               }}
               onClick={toggleLoop}
-              title="Toggle loop region"
+              disabled={!player.duration}
+              title={
+                player.loopEnabled
+                  ? 'Disable loop'
+                  : player.loopStart !== null
+                  ? 'Enable loop'
+                  : 'Loop the whole track (drag on waveform for a custom range)'
+              }
             >
               ⟳
             </button>
@@ -101,19 +125,6 @@ export default function Transport({ player, onPlayerChange, isStream = false }: 
                   {s === 1 ? '1×' : `${s}×`}
                 </button>
               ))}
-              <input
-                type="range"
-                min={0.25}
-                max={1.5}
-                step={0.05}
-                value={player.speed}
-                style={styles.speedSlider}
-                onChange={(e) => setSpeed(parseFloat(e.target.value))}
-                title={`Speed: ${player.speed}×`}
-              />
-              {!SPEED_PRESETS.includes(player.speed) && (
-                <span style={styles.speedCustom}>{player.speed}×</span>
-              )}
             </div>
           </>
         )}
@@ -148,13 +159,16 @@ export default function Transport({ player, onPlayerChange, isStream = false }: 
       </div>
 
       <div id="transport-right" style={styles.right}>
-        <span style={styles.time}>
-          {formatTime(player.currentTime)}
-          <span style={styles.timeSep}> / </span>
-          {formatTime(player.duration)}
-        </span>
+        {!isStream && (
+          <span style={styles.time}>
+            {formatTime(player.currentTime)}
+            <span style={styles.timeSep}> / </span>
+            {formatTime(player.duration)}
+          </span>
+        )}
         <input
           type="range"
+          className="slider-glow"
           min={0}
           max={1}
           step={0.01}
@@ -165,6 +179,16 @@ export default function Transport({ player, onPlayerChange, isStream = false }: 
           }
           title={`Volume ${Math.round(player.volume * 100)}%`}
         />
+        <button
+          id="transport-mute"
+          style={styles.muteBtn}
+          onClick={toggleMute}
+          title={isMuted ? 'Unmute' : 'Mute'}
+        >
+          {isMuted
+            ? <VolumeOff set="light" size={16} primaryColor="var(--content-text-secondary)" />
+            : <VolumeUp set="light" size={16} primaryColor="var(--accent)" />}
+        </button>
       </div>
     </div>
   )
@@ -185,8 +209,11 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: 16,
     padding: '0 16px',
-    background: 'var(--bg-panel)',
-    borderTop: '1px solid var(--border)',
+    backgroundImage: `url(${brushedMetalUrl})`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundRepeat: 'no-repeat',
+    borderTop: '1px solid var(--content-border)',
   },
   left: {
     display: 'flex',
@@ -198,23 +225,24 @@ const styles: Record<string, React.CSSProperties> = {
     width: 36,
     height: 36,
     borderRadius: '50%',
-    border: '1px solid var(--border-bright)',
-    background: 'var(--bg-hover)',
-    color: 'var(--text-primary)',
+    border: '2px solid var(--accent)',
+    background: `url('${knobUrl}') center/cover no-repeat`,
+    color: 'var(--accent)',
     fontSize: 14,
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    boxShadow: 'var(--accent-glow-lg)',
   },
   btn: {
     width: 28,
     height: 28,
     borderRadius: 4,
-    border: '1px solid var(--border)',
+    border: '1px solid var(--content-border)',
     background: 'transparent',
-    color: 'var(--text-secondary)',
+    color: 'var(--content-text-secondary)',
     fontSize: 16,
     cursor: 'pointer',
     display: 'flex',
@@ -225,6 +253,12 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--accent)',
     border: '1px solid var(--accent-border)',
     background: 'var(--accent-dim)',
+    boxShadow: 'var(--accent-glow)',
+    textShadow: 'var(--accent-glow)',
+  },
+  btnDisabled: {
+    opacity: 0.35,
+    cursor: 'default',
   },
   center: {
     flex: 1,
@@ -235,7 +269,7 @@ const styles: Record<string, React.CSSProperties> = {
   seekBar: {
     flex: 1,
     height: 4,
-    background: 'var(--border)',
+    background: 'var(--content-border)',
     borderRadius: 2,
     cursor: 'pointer',
     position: 'relative',
@@ -245,7 +279,7 @@ const styles: Record<string, React.CSSProperties> = {
     left: 0,
     top: 0,
     height: '100%',
-    background: 'var(--waveform-prog)',
+    background: 'var(--accent)',
     borderRadius: 2,
     pointerEvents: 'none',
   },
@@ -266,6 +300,7 @@ const styles: Record<string, React.CSSProperties> = {
     height: 10,
     borderRadius: '50%',
     background: 'var(--accent)',
+    boxShadow: 'var(--accent-glow)',
     pointerEvents: 'none',
   },
   right: {
@@ -277,15 +312,29 @@ const styles: Record<string, React.CSSProperties> = {
   time: {
     fontFamily: 'var(--font-mono)',
     fontSize: 12,
-    color: 'var(--text-secondary)',
+    color: 'var(--content-text-secondary)',
     whiteSpace: 'nowrap',
+    // Proportional digits (e.g. a slim "1" vs a wide "8") change this span's
+    // width every tick, which shifts the whole flexShrink:0 `right` block and
+    // makes the seekbar next to it visibly wobble left/right. Tabular figures
+    // give every digit the same width so the counter's width stays constant.
+    fontVariantNumeric: 'tabular-nums',
   },
   timeSep: {
-    color: 'var(--text-muted)',
+    color: 'var(--content-text-secondary)',
+    opacity: 0.6,
   },
   vol: {
     width: 70,
-    accentColor: 'var(--accent)',
+  },
+  muteBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'transparent',
+    border: 'none',
+    padding: 0,
+    marginLeft: 6,
     cursor: 'pointer',
   },
   speedGroup: {
@@ -294,15 +343,15 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 3,
     marginLeft: 8,
     paddingLeft: 8,
-    borderLeft: '1px solid var(--border)',
+    borderLeft: '1px solid var(--content-border)',
   },
   speedBtn: {
     height: 20,
     padding: '0 6px',
     borderRadius: 3,
-    border: '1px solid var(--border)',
+    border: '1px solid var(--content-border)',
     background: 'transparent',
-    color: 'var(--text-muted)',
+    color: 'var(--content-text-secondary)',
     fontSize: 10,
     fontFamily: 'var(--font-mono)',
     cursor: 'pointer',
@@ -313,18 +362,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'var(--accent)',
     border: 'none',
     background: 'var(--accent-dim)',
-  },
-  speedSlider: {
-    width: 64,
-    accentColor: 'var(--accent)',
-    cursor: 'pointer',
-    marginLeft: 2,
-  },
-  speedCustom: {
-    fontFamily: 'var(--font-mono)',
-    fontSize: 10,
-    color: 'var(--accent)',
-    minWidth: 28,
+    textShadow: 'var(--accent-glow)',
   },
   liveBadge: {
     display: 'flex',

@@ -5,30 +5,60 @@
 }
 
 :root {
-  --bg-base:       #0f0f0f;
-  --bg-panel:      #161616;
-  --bg-track:      #1c1c1c;
-  --bg-track-alt:  #191919;
-  --bg-active:     #1e2a1e;
-  --bg-hover:      #222222;
-  --border:        #2a2a2a;
-  --border-bright: #3a3a3a;
+  /* Dark register — titlebar, sidebar header/tabs, waveform/spectrum panel */
+  --bg-base:       #313131;
+  --bg-panel:      #383838;
+  --bg-track:      #3e3e3e;
+  --bg-track-alt:  #3b3b3b;
+  --bg-hover:      #444444;
+  --border:        #4c4c4c;
+  --border-bright: #5c5c5c;
 
-  --accent:        #4ade80;
-  --accent-dim:    #22c55e66;
-  --accent-region: #4ade8033;
-  --accent-border: #4ade80aa;
+  /* Content register — track list, transport bar, radio panel content.
+     Black + phosphor green, matching the vintage receiver's meter/display
+     glass (same green family as the waveform's vintage-green skin) — this is
+     the "screen" the brushed-aluminum chassis is built around, not a toggle. */
+  --bg-content:              #050d09;
+  --bg-content-alt:          #0b1a13;
+  --content-border:          #1a3d2c;
+  --content-text:            #baffe3;
+  --content-text-secondary:  #6fdbb0;
 
-  --waveform:      #3a7a50;
-  --waveform-prog: #4ade80;
-  --cursor:        #4ade80;
+  /* Universal accent — same in both registers. Phosphor green (matches the
+     content register and the vintage waveform skin) — the app runs one
+     consistent "lit dial" identity now instead of orange-accent-on-dark. */
+  --accent:          #39ffc0;
+  --accent-dim:      #39ffc066;
+  --accent-region:   #39ffc033;
+  --accent-border:   #39ffc0aa;
+  --accent-row-tint: #39ffc014;
+  --accent-secondary: #1fae82;
+  --on-accent:       #06140d;
+  --accent-glow:     0 0 8px rgba(57, 255, 192, 0.7);
+  --accent-glow-lg:  0 0 14px rgba(57, 255, 192, 0.8), 0 0 3px rgba(57, 255, 192, 0.9);
 
-  --text-primary:  #e8e8e8;
-  --text-secondary:#888888;
-  --text-muted:    #555555;
+  --danger:        #f87171;
+  --danger-dim:    #f871711a;
+  --danger-border: #f8717166;
 
-  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-mono: 'SF Mono', 'Fira Mono', 'Cascadia Code', monospace;
+  --warning:        #fbbf24;
+  --warning-dim:    #fbbf241a;
+  --warning-border: #fbbf2459;
+
+  --waveform:         #7a5233;
+  --waveform-prog:    #C67C4E;
+  --cursor:           #C67C4E;
+  --waveform-bg:      #0a0a0a;
+  --waveform-grad-1:  #2e1a0d;
+  --waveform-grad-2:  #7a4a26;
+  --waveform-grad-4:  #f3d9b8;
+
+  --text-primary:  #F9F2ED;
+  --text-secondary:#b0a89f;
+  --text-muted:    #7a736c;
+
+  --font: 'Sora', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Sora', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 html, body, #root {
@@ -46,6 +76,19 @@ html, body, #root {
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--border-bright) transparent;
+}
+
+/* Buttons otherwise fall back to the native focus ring, which picks up the
+   OS "highlight color" (e.g. macOS System Settings > Appearance) — on a
+   machine set to orange that clashes with the app's green theme. Replace it
+   with a themed ring so focus styling stays consistent across systems. */
+button {
+  font: inherit;
+  outline: none;
+}
+button:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
 }
 
 ::-webkit-scrollbar {
@@ -74,4 +117,116 @@ html, body, #root {
 }
 ::-webkit-scrollbar-thumb:active {
   background: var(--border-bright);
+}
+
+/* Tactile press feedback for the knob-styled play button — shrinks and dims
+   its glow on press, springs back on release. Plain :active, no JS needed. */
+#transport-play {
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+#transport-play:active {
+  transform: scale(0.9);
+  box-shadow: 0 0 4px rgba(57, 255, 192, 0.5);
+}
+
+/* Fully custom range-input skin — glowing green fill, no native border/ring.
+   `accent-color` alone can't remove Chromium's default thumb outline, so this
+   drops native appearance entirely and redraws track + thumb from scratch. */
+.slider-glow {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: var(--accent-glow);
+  outline: none;
+  border: none;
+  cursor: pointer;
+}
+.slider-glow::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: var(--accent-glow);
+  border: none;
+  cursor: pointer;
+}
+
+/* Vintage amp chassis — walnut cabinet frame + brushed-aluminum control face.
+   Content areas (track list, search results, waveform/tuner — which has its
+   own skin toggle) are deliberately left on the dark theme, same as a real
+   receiver's dark meter/display cutouts set into the metal face.
+
+   The brushed-metal image itself is NOT set here — these components set
+   `background: var(--bg-base)` etc. as an *inline* style, which always wins
+   over an external rule. Worse, a relative url() declared here and merely
+   *substituted* into that inline style (e.g. `--bg-base-image: url(...)`
+   consumed via `backgroundImage: var(--bg-base-image)`) resolves against the
+   *document's* base URL, not this stylesheet's — dropping a path segment in
+   the packaged (file://) build even though dev mode (http://) hid the bug.
+   So the image is a plain JS import in each component instead (same fix as
+   the play button's knob.png), and this block only supplies the flat colors. */
+#titlebar,
+#sidebar-header,
+#sidebar-tabs {
+  --bg-panel: rgba(255, 255, 255, 0.4);
+  --bg-hover: rgba(0, 0, 0, 0.08);
+  --border: rgba(0, 0, 0, 0.2);
+  --border-bright: rgba(0, 0, 0, 0.38);
+  --text-primary: #0a0a0a;
+  --text-secondary: #2b2b2b;
+  --text-muted: #55534f;
+}
+
+#transport-bar {
+  --content-border: rgba(0, 0, 0, 0.2);
+  --content-text: #0a0a0a;
+  --content-text-secondary: #2b2b2b;
+}
+
+#app-shell {
+  background-image: url('../assets/textures/wood.jpg');
+  background-repeat: repeat;
+  background-size: 320px 320px;
+}
+
+/* Vintage Green waveform look — phosphor/VFD look of a 70s stereo receiver
+   (Sansui 9090DB signal meters, Sony STR-6055 FM scale). Scoped to #loop-editor
+   so it only ever affects the waveform + tuner panel, never the rest of the app
+   (which now uses this same green permanently anyway). The waveform canvas
+   itself is a plain <canvas>, painted from JS — its colors are the WAVE_COLOR /
+   PROGRESS_COLOR / CURSOR_COLOR constants at the top of LoopEditorPanel.tsx,
+   which must match the hex values here. */
+#loop-editor[data-skin="vintage-green"] {
+  --bg-track: #030f0a;
+  --bg-panel: #06180f;
+  --bg-hover: #0d2a1d;
+  --border: #123d2a;
+  --border-bright: #1d5c40;
+  --text-primary: #baffe3;
+  --text-secondary: #6fdbb0;
+  --text-muted: #3a8f6c;
+  --accent: #39ffc0;
+  --accent-dim: #39ffc033;
+  --accent-region: #39ffc026;
+  --warning: #ffd23d;
+  --waveform-bg: #010805;
+  /* Can't self-reference var(--font) here — that's a cyclic custom-property
+     reference, which CSS treats as invalid and silently drops. Repeat the
+     :root fallback stack literally instead. */
+  --font: 'Michroma', 'Sora', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Michroma', 'Sora', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+#loop-editor[data-skin="vintage-green"] #loop-editor-header,
+#loop-editor[data-skin="vintage-green"] #pitch-tuner,
+#loop-editor[data-skin="vintage-green"] #loop-editor-canvas {
+  text-shadow: 0 0 5px currentColor;
+}
+
+#loop-editor[data-skin="vintage-green"] #loop-editor-canvas {
+  box-shadow: inset 0 0 50px rgba(57, 255, 192, 0.1);
 }
