@@ -1,5 +1,135 @@
 # ZentaPlayer — Status
 
+## Sesja 3 (2026-09-21) — ikona, arch-split build, domena espressoplayer.com
+
+### Zrobione
+
+- [x] **Nowa ikona aplikacji** — usunięta stara ikona z czasów "Kaza Player"
+  (neonowy kształt przypominający literę K). Najpierw zaprojektowana prosta
+  zielona ikonka filiżanki kawy (kolory brandu: `#39ffc0` / `#1fae82`) na
+  białym tle, potem podmieniona na dostarczoną przez użytkownika ikonę ziarna
+  kawy (brąz na czarnym tle, `website/assets/icons/coffee_icon.png`).
+  Zaktualizowane: `assets/icon.icns`, `assets/icon.ico`,
+  `website/assets/icons/favicon-32.png` + `icon-180.png`,
+  `assets/img/skin/coffee-icon.png`. Header strony (`website/index.html`)
+  ma teraz sam tekst "Espresso Player" bez logo — usunięte na życzenie.
+- [x] **Build rozbity na architektury (arm64 + x64) zamiast universal** —
+  `package.json`: `build.mac.target[0].arch` zmienione z `["universal"]` na
+  `["arm64", "x64"]`, `dist:release` bez flagi `--universal`. Efekt: rozmiar
+  pobrania spadł z ~205 MB (jeden uniwersalny plik) do ~113 MB (arm64) /
+  ~121 MB (x64) — Electron Framework w buildzie universal dublował kod
+  natywny dla obu architektur. Strona ma teraz dwa przyciski pobierania
+  ("Apple Silicon" / "Intel") zamiast jednego.
+- [x] Lokalna zainstalowana appka (`/Applications/Espresso Player.app`) +
+  jej dane (`~/Library/Application Support/Espresso Player`, plist w
+  Preferences) skasowane na życzenie, żeby przetestować świeże pobranie ze
+  strony.
+- [x] **Kupiona domena espressoplayer.com** (Porkbun) i przeniesiona pod
+  Cloudflare:
+  - Nameservery zmienione u Porkbuna z `curitiba/fortaleza/maceio/salvador.ns.porkbun.com`
+    na Cloudflare (`ingrid.ns.cloudflare.com`, `nico.ns.cloudflare.com`).
+  - MX (`fwd1`/`fwd2.porkbun.com`) i SPF TXT zaimportowane 1:1 do nowej
+    zony Cloudflare — mail forwarding powinien przetrwać bez przerwy.
+  - Custom domains dodane: `espressoplayer.com` + `www.espressoplayer.com`
+    → Cloudflare Pages (projekt `espresso-player`); `dl.espressoplayer.com`
+    → R2 bucket `espresso-player-downloads` (docelowo ładny link zamiast
+    surowego `pub-....r2.dev`).
+
+### Stan na koniec dnia — NIEDOKOŃCZONE, do sprawdzenia na następnej sesji
+
+- [ ] **Propagacja DNS jeszcze w toku.** Panel Cloudflare pokazywał zonę
+  jako aktywną, ale zapytanie do `1.1.1.1` (`dig @1.1.1.1 NS espressoplayer.com`)
+  o tej porze nadal zwracało stare nameservery Porkbuna. Sprawdzone też
+  bezpośrednio na serwerze `.com` (`dig @a.gtld-servers.net +norec NS
+  espressoplayer.com`) — to nie kwestia cache'u resolverów, sam rejestr
+  jeszcze ma starą delegację do Porkbuna (TTL 172800 = pełne 48h). Zmiana u
+  Porkbuna widocznie jeszcze nie doszła do rejestru; nie ma na to wpływu z
+  naszej strony, tylko czekać. **Celowo NIE podmieniono jeszcze linków
+  pobierania na stronie** z `pub-47045ea40f3d4f86987f6bf039c31aed.r2.dev`
+  na `dl.espressoplayer.com`,
+  bo dopóki propagacja nie dojdzie, ten adres serwowałby starą stronę
+  parkingową Porkbuna zamiast pliku.
+- [ ] Do zrobienia jak propagacja dojdzie:
+  1. Zweryfikować `dig @1.1.1.1 NS espressoplayer.com` → powinno zwracać
+     `ingrid.ns.cloudflare.com` / `nico.ns.cloudflare.com`.
+  2. `curl -I https://dl.espressoplayer.com/EspressoPlayer-1.0.0-arm64.dmg`
+     (i wersja x64) → powinno zwracać 200 z R2, nie stronę Porkbuna.
+  3. Podmienić oba linki pobierania w `website/index.html` na
+     `https://dl.espressoplayer.com/EspressoPlayer-1.0.0-{arm64,x64}.dmg`.
+  4. `npx wrangler pages deploy website --project-name=espresso-player` po
+     zmianie linków.
+  5. Zweryfikować że mail forwarding na `@espressoplayer.com` faktycznie
+     działa (wysłać testowego maila) — rekordy są przeniesione 1:1, ale
+     warto potwierdzić end-to-end.
+  6. Rozważyć posprzątanie starego wildcard rekordu
+     `*.espressoplayer.com CNAME uixie.porkbun.com` (parking Porkbuna,
+     obecnie nieużywany, nie koliduje z niczym bo `dl`/`www` mają własne
+     bardziej szczegółowe rekordy, ale jest już zbędny).
+
+---
+
+## Sesja 4 (2026-09-22) — diagnoza: NS wciąż nie propaguje po 24h
+
+- Zweryfikowane bezpośrednio na serwerach rejestru .com (`dig @a.gtld-servers.net
+  +norec NS espressoplayer.com`, też `@b.gtld-servers.net`) oraz whois — po
+  ~24h **rejestr nadal zwraca stare nameservery Porkbuna**
+  (`curitiba/fortaleza/maceio/salvador.ns.porkbun.com`), nie Cloudflare. To
+  zapytanie omija cache resolwerów, więc to nie jest już kwestia propagacji —
+  sama zmiana NS najwyraźniej nie doszła do rejestru.
+- `espressoplayer-com.l.ink` widoczny w przeglądarce to branded shortlink
+  własny Porkbuna używany na ich domyślnej stronie parkingowej — potwierdza,
+  że ruch nadal trafia na serwery Porkbuna.
+- **Podejrzenie:** zmiana nameserverów w panelu Porkbuna albo się nie
+  zapisała, albo domena ma jakąś blokadę (registrar/transfer lock)
+  uniemożliwiającą update w rejestrze. To już zbyt długo jak na zwykłą
+  propagację NS.
+- **Do zrobienia:** zalogować się do panelu Porkbuna → Domain Management →
+  sprawdzić czy przy `espressoplayer.com` faktycznie widnieją nameservery
+  Cloudflare. Jeśli tak, a rejestr dalej pokazuje Porkbun — zgłosić do
+  supportu Porkbuna. Jeśli nie — ustawić ponownie i potwierdzić zapis.
+
+**Update tego samego dnia — naprawione:** przyczyna potwierdzona — w
+Porkbunie (`Edit Authoritative Nameservers`) nadal widniały 4 domyślne NS
+Porkbuna, zmiana na Cloudflare nigdy się nie zapisała mimo notatki wyżej.
+Użytkownik podmienił ręcznie na `ingrid.ns.cloudflare.com` +
+`nico.ns.cloudflare.com` i zapisał. Zweryfikowane bezpośrednio na
+`a.gtld-servers.net` i przez whois — **zmiana doszła do rejestru natychmiast**
+(nie trzeba było czekać 48h). `curl -I https://espressoplayer.com` → `200`
+z Cloudflare Pages, strona parkingowa Porkbuna zniknęła.
+
+Pozostało do sprawdzenia: `www.espressoplayer.com` → `522` i
+`dl.espressoplayer.com` → `403` tuż po aktywacji strefy — prawdopodobnie
+certyfikaty SSL dla tych poddomen jeszcze się wystawiają po stronie
+Cloudflare (Pages → Custom domains / R2 → Custom domain, status powinien
+przejść z "Pending" na "Active"). Zweryfikować ponownie za jakiś czas, a
+potem kontynuować punkty 2–6 z listy TODO wyżej (podmiana linków pobierania
+na `dl.espressoplayer.com`, `wrangler pages deploy`, test mail forwardingu).
+
+**Update — w pełni naprawione, ten sam dzień:**
+- Pages → Custom domains: oba wpisy (`espressoplayer.com`,
+  `www.espressoplayer.com`) utknęły w "Verifying" bo dodane zanim domena
+  faktycznie działała na Cloudflare. Kliknięcie "Check DNS records" ręcznie
+  wymusiło re-weryfikację → oba przeszły na 200 od razu.
+- R2 → bucket `espresso-player-downloads` → Settings → Custom Domains:
+  mimo że rekord DNS `dl.espressoplayer.com` (typ R2) istniał, **bucket nigdy
+  nie miał tej domeny faktycznie dodanej jako custom domain po swojej
+  stronie** ("There is no custom domain assigned to this bucket") — stąd
+  403. Naprawione przez ręczne dodanie `dl.espressoplayer.com` w tej sekcji
+  → status "Active / Enabled", plik `.dmg` pobiera się poprawnie (zweryfikowano
+  `curl` z realnym content-length ~118MB).
+- Linki pobierania w `website/index.html` podmienione z
+  `pub-47045ea40f3d4f86987f6bf039c31aed.r2.dev` na `dl.espressoplayer.com`.
+- Zdeployowane: `npx wrangler pages deploy website --project-name=espresso-player`
+  (deployment `91288a8e.espresso-player.pages.dev`) — zweryfikowane że
+  `espressoplayer.com` serwuje już nowe linki.
+- **Nie zrobione jeszcze:** test end-to-end mail forwardingu na
+  `@espressoplayer.com`, oraz posprzątanie zbędnego wildcard rekordu
+  `*.espressoplayer.com CNAME uixie.porkbun.com` w Cloudflare DNS (już
+  nieaktywny w praktyce, bo specific records wygrywają, ale nieużywany —
+  do usunięcia przy okazji).
+
+---
+
 ## Sesja 2 (2026-05-19) — zrobione dziś
 
 ### Naprawione
@@ -150,6 +280,30 @@ npm run dev
 
 ### Pakowanie
 
-- [ ] electron-builder config → `.dmg` dla macOS
-- [ ] Ikona aplikacji
+- [x] electron-builder config → `.dmg` dla macOS, podpisany Developer ID +
+  notaryzowany (sesja 2026-09-21, patrz `CHANGELOG.md`)
+- [x] **Ikona aplikacji** — podmieniona (sesja 2026-09-21, patrz sekcja
+  "Sesja 3" wyżej). Nowa ikona ziarna kawy w `assets/icon.icns`/`icon.ico`
+  + strona, przebudowane i przetestowane.
+- [ ] **Build dla Windows** — `npm run dist:win` (target `nsis`) jest w
+  `package.json`, ale nigdy nie był realnie zbudowany ani przetestowany w tej
+  sesji (robiliśmy tylko macOS). Do zrobienia/sprawdzenia:
+  - czy build w ogóle przechodzi na tej maszynie (crossbuild z macOS) czy
+    trzeba go robić na Windows/CI,
+  - czy wszystkie natywne zależności (ffmpeg, music-metadata) działają na
+    Windows tak jak na macOS,
+  - podpisywanie kodu dla Windows — bez tego SmartScreen pokaże ostrzeżenie
+    "Windows protected your PC" przy pierwszym uruchomieniu, podobnie jak
+    niepodpisany macOS. Wymaga certyfikatu code-signing dla Windows (inny
+    proces niż Apple Developer ID — EV lub OV cert od zewnętrznego CA, np.
+    DigiCert/SSL.com), osobny koszt/proces od tego co już mamy na macOS.
+  - strona (`website/index.html`) ma już przygotowany, wyszarzony przycisk
+    "Coming soon" dla Windows — po zbudowaniu i podpisaniu podmienić na
+    aktywny link do pliku.
 - [ ] Auto-updater (electron-updater)
+
+### Wydajność — rzeczy do sprawdzenia
+
+- [ ] **Kolejność ładowania playlist przy starcie** — `App.tsx`, efekt `Load saved library on startup`. Obecnie przy starcie apka buduje metadane (`buildTracks` → `api.readMetadata`) dla **wszystkich** playlist naraz przez `Promise.all`, zanim cokolwiek pokaże w UI — nawet dla playlist, na które użytkownik w danym momencie nie patrzy. Przy bardzo dużych bibliotekach z wieloma playlistami dałoby się to przyspieszyć: najpierw zbudować i pokazać aktywną playlistę, resztę dociągać w tle.
+  - Świadomie nieruszane przy poprawce cache'u metadanych (patrz `read-metadata` w `src/main/main.ts`), bo wymaga ostrożnej zmiany logiki zapisu biblioteki (`saveLibrary` efekt w `App.tsx`) — ten efekt buduje `paths` z aktualnej listy `tracks` w stanie, więc gdyby playlista tymczasowo (w trakcie ładowania w tle) miała pustą listę tracków, mogłoby to nadpisać `library.json` pustymi playlistami i skasować realną bibliotekę na dysku.
+  - Do zrobienia bezpiecznie: albo trzymać `paths` do zapisu osobno od stanu `tracks` (np. z `sp.paths` dopóki tracks się nie załadują), albo nie odpalać efektu zapisu, dopóki wszystkie playlisty nie skończą wstępnego ładowania.
