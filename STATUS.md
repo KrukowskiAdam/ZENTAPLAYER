@@ -54,16 +54,29 @@
   dowodów popularności (żadnych fałszywych claimów) — świadome ryzyko że
   to może skutkować odrzuceniem, bo program celuje w ugruntowane projekty.
   Status: **czekamy na odpowiedź mailową** na krukowski.adam@gmail.com.
+- [x] **Odpowiedź SignPath Foundation: odrzucone** (2026-09-22, mailowo,
+  podpisane "Phillip"). Powód: program Foundation wymaga zewnętrznych
+  sygnałów zaufania/widoczności (gwiazdki/forki/kontrybutorzy na GitHubie,
+  artykuły, wzmianki na Reddit/SO/YouTube, wsparcie instytucjonalne) —
+  projekt jeszcze ich nie ma, to nie ocena jakości kodu. Zaproszenie do
+  ponownej aplikacji po zdobyciu większej rozpoznawalności. Alternatywa:
+  płatna subskrypcja SignPath (docs.signpath.io/change-subscription) —
+  **odrzucona przez użytkownika, za drogo (~$200)**.
 
 ### Decyzja użytkownika — ważne na przyszłość
 
 - **Użytkownik nie zapłaci za certyfikat OV/EV code-signing** (~$220+/rok)
-  pod żadnym pozorem. Jeśli SignPath odrzuci wniosek albo nie odpowie —
-  **zostawiamy jak jest**: `.exe` dalej niepodpisany, z ostrzeżeniem
-  SmartScreen na stronie. Nie proponować ponownie płatnej opcji.
-- Jeśli SignPath **zaakceptuje**: trzeba będzie dokończyć integrację w
-  `.github/workflows/build.yml` (SignPath prowadzi przez konfigurację ich
-  API do podpisywania w CI).
+  pod żadnym pozorem, w tym za płatny plan SignPath. Po odrzuceniu wniosku
+  Foundation (patrz wyżej) — **zostajemy jak jest**: `.exe` dalej
+  niepodpisany, z ostrzeżeniem SmartScreen na stronie. Nie proponować
+  ponownie płatnej opcji.
+- **Możliwy powrót do tematu w przyszłości:** gdy projekt zyska więcej
+  gwiazdek/forków/wzmianek zewnętrznych, można ponownie złożyć wniosek do
+  SignPath Foundation (signpath.org/apply) — sami zapraszają do ponownej
+  aplikacji.
+- Gdyby mimo wszystko SignPath kiedyś **zaakceptował**: trzeba będzie
+  dokończyć integrację w `.github/workflows/build.yml` (SignPath prowadzi
+  przez konfigurację ich API do podpisywania w CI).
 
 ---
 
