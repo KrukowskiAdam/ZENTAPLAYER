@@ -8,6 +8,7 @@ import RadioPanel from './RadioPanel'
 import TagEditorModal, { type TagWriteUpdate } from './TagEditorModal'
 import { Disc } from './icons'
 import brushedMetalUrl from '../assets/textures/brushed-metal.jpg'
+import coffeeLogoUrl from '../assets/icons/coffee_logo.png'
 
 interface PlaylistTab {
   id: string
@@ -313,7 +314,10 @@ export default function Sidebar({
     <div id="sidebar" style={styles.sidebar}>
       {/* Header */}
       <div id="sidebar-header" style={styles.header}>
-        <span style={styles.title}>Espresso Player</span>
+        <span style={styles.title}>
+          <img src={coffeeLogoUrl} alt="" style={styles.titleLogo} />
+          Espresso Player
+        </span>
         <div style={styles.headerRight}>
           {!radioActive && (
             <div style={styles.searchBox}>
@@ -672,12 +676,22 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'relative' as const,
   },
   title: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
     fontFamily: "'Michroma', var(--font)",
     fontSize: 20,
     fontWeight: 700,
     letterSpacing: '0.02em',
     color: 'var(--accent)',
     textShadow: 'var(--accent-glow)',
+  },
+  titleLogo: {
+    width: 18,
+    height: 18,
+    position: 'relative' as const,
+    top: 2,
+    filter: 'drop-shadow(0 0 4px rgba(57, 255, 192, 0.8)) drop-shadow(0 0 8px rgba(57, 255, 192, 0.5))',
   },
   headerRight: {
     display: 'flex',
