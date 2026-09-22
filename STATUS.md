@@ -1,5 +1,72 @@
 # ZentaPlayer — Status
 
+## Sesja 5 (2026-09-22) — push do GitHub, build Windows, open source + wniosek SignPath
+
+### Zrobione
+
+- [x] **Cała praca z sesji 1-3 (nigdy niezacommitowana) wypchnięta na GitHub**
+  (`github.com/KrukowskiAdam/ZENTAPLAYER`) w 4 commitach: rebranding +
+  konfiguracja signing/CI, poprawki błędów + nowe funkcje (pitch-preserving
+  speed, tag editor), changelog/roadmap/website assets, i osobno DNS fix.
+  Wcześniej na koncie GitHub był tylko bardzo stary "Initial commit" —
+  reszta siedziała jako niezacommitowane zmiany lokalnie.
+- [x] **`.gitignore`** rozszerzony o `.DS_Store`, `log.txt`, `_MISC/` (osobisty
+  folder roboczy z plikiem `.psd` i zrzutami ekranu, nie część projektu).
+- [x] **CI (`.github/workflows/build.yml`) naprawione — build Windows/Mac
+  teraz faktycznie przechodzi.** Dwie kolejne przyczyny awarii:
+  1. `GH_TOKEN` w env kroków `build-mac`/`build-win` — niepotrzebny, bo
+     publikacją zajmuje się osobny job `release`. Usunięty.
+  2. Mimo usunięcia tokena, `electron-builder` **sam wykrywa git tag
+     pasujący do wersji i próbuje publikować** ("Implicit publishing
+     triggered by git tag") niezależnie od obecności tokena, i wywala się
+     bo tokena faktycznie nie ma. Naprawione dodaniem `--publish=never` do
+     wszystkich skryptów `dist*` w `package.json`. Sam `.dmg`/`.exe` budowały
+     się poprawnie przez cały czas — padał tylko ten zbędny krok publikacji.
+  - Po naprawie: pierwszy udany release
+    [`v1.0.0`](https://github.com/KrukowskiAdam/ZENTAPLAYER/releases/tag/v1.0.0)
+    z plikami `Espresso Player-1.0.0-arm64.dmg`, `Espresso Player-1.0.0.dmg`,
+    `Espresso Player Setup 1.0.0.exe` — Windows buduje się automatycznie na
+    `windows-latest` runnerze GitHuba, bez potrzeby posiadania Windowsa.
+- [x] **Przycisk "Download for Windows" na stronie** — podmieniony z
+  placeholdera "Coming soon" na link do `.exe` z GitHub Release. Z uwagą
+  że installer jest niepodpisany i Windows SmartScreen może ostrzec.
+- [x] **Projekt przeszedł na open source (MIT)** jako warunek kwalifikacji
+  do darmowego Windows code-signing przez SignPath Foundation
+  (signpath.org — podpisuje za darmo projekty open-source, weryfikując że
+  binarka powstała z publicznego repo, zamiast tożsamości osoby):
+  - Dodany `LICENSE` (MIT), `README.md`, `CODE_SIGNING.md` (wymagana przez
+    SignPath jawna polityka podpisywania).
+  - `package.json`: `license` z `"ISC"` (bez pliku LICENSE, czyli
+    prawnie nieustalone) na `"MIT"`, uzupełniony `description` i `author`.
+  - **Usunięty font "Command Override"** (`assets/font/`,
+    `src/renderer/public/fonts/`) — znaleziony przy okazji audytu pod kątem
+    "brak komponentów proprietarnych": font ma licencję *"free for
+    non-commercial use only"*, a przy tym **nie był w ogóle używany** (UI
+    faktycznie ładuje Michroma z Google Fonts). Build zweryfikowany że
+    dalej działa po usunięciu.
+  - Strona (`website/index.html`) — dodana wzmianka o SignPath Foundation
+    przy przycisku Windows (wymóg formularza: "Download URL must mention
+    that the project uses SignPath Foundation for code signing").
+- [x] **Wniosek do SignPath Foundation złożony** (signpath.org/apply,
+  2026-09-22) — Maintainer Type: Individual, Build System: GitHub Actions,
+  Primary Discovery Channel: AI/LLM tools. Pole "Reputation" wypełnione
+  **uczciwie** jako nowo wydany projekt solo-dev bez jeszcze zebranych
+  dowodów popularności (żadnych fałszywych claimów) — świadome ryzyko że
+  to może skutkować odrzuceniem, bo program celuje w ugruntowane projekty.
+  Status: **czekamy na odpowiedź mailową** na krukowski.adam@gmail.com.
+
+### Decyzja użytkownika — ważne na przyszłość
+
+- **Użytkownik nie zapłaci za certyfikat OV/EV code-signing** (~$220+/rok)
+  pod żadnym pozorem. Jeśli SignPath odrzuci wniosek albo nie odpowie —
+  **zostawiamy jak jest**: `.exe` dalej niepodpisany, z ostrzeżeniem
+  SmartScreen na stronie. Nie proponować ponownie płatnej opcji.
+- Jeśli SignPath **zaakceptuje**: trzeba będzie dokończyć integrację w
+  `.github/workflows/build.yml` (SignPath prowadzi przez konfigurację ich
+  API do podpisywania w CI).
+
+---
+
 ## Sesja 3 (2026-09-21) — ikona, arch-split build, domena espressoplayer.com
 
 ### Zrobione
