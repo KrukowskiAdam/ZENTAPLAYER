@@ -22,8 +22,6 @@ jobs:
 
       - name: Build Mac (arm64)
         run: npm run dist:arm
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Mac artifact
         uses: actions/upload-artifact@v4
@@ -46,8 +44,6 @@ jobs:
 
       - name: Build Windows (x64)
         run: npm run dist:win
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
