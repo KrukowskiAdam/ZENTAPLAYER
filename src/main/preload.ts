@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveLibrary: (paths: string[]) => ipcRenderer.invoke('save-library', paths),
   writeTags: (updates: any[]) => ipcRenderer.invoke('write-tags', updates),
   checkFfmpeg: (): Promise<boolean> => ipcRenderer.invoke('check-ffmpeg'),
+  findMissingTracks: (playlists: Array<{ name: string; paths: string[] }>): Promise<string[]> =>
+    ipcRenderer.invoke('find-missing-tracks', playlists),
   getCueInfo: (filePaths: string[]): Promise<Record<string, { trackCount: number; albumTitle?: string } | null>> =>
     ipcRenderer.invoke('get-cue-info', filePaths),
   convertToMp3: (

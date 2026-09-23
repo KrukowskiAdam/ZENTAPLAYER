@@ -110,6 +110,7 @@ function buildAppMenu() {
         { label: 'Add Files…', accelerator: 'CmdOrCtrl+O', click: () => send('menu:add-files') },
         { label: 'Add Folder…', accelerator: 'CmdOrCtrl+Shift+O', click: () => send('menu:add-folder') },
         { label: 'Update Folders', accelerator: 'CmdOrCtrl+Shift+U', click: () => send('menu:update-folders') },
+        { label: 'Remove Missing Files…', click: () => send('menu:remove-missing') },
         { type: 'separator' as const },
         { label: 'New Playlist', accelerator: 'CmdOrCtrl+N', click: () => send('menu:new-playlist') },
       ],
@@ -313,6 +314,39 @@ ipcMain.handle('scan-paths', async (_event, paths: string[]) => {
   }
   found.sort()
   return found
+})
+
+// Finds playlist entries whose file no longer exists and asks before dropping them.
+// Returns the paths to remove — empty when nothing is missing or the user declines.
+// The confirmation matters: an unplugged external drive makes every track on it look
+// "missing", and removing them would lose the playlist order for nothing.
+ipcMain.handle('find-missing-tracks', async (_event, playlists: Array<{ name: string; paths: string[] }>) => {
+  const missing = new Set<string>()
+  const perPlaylist: string[] = []
+  for (const pl of playlists) {
+    let count = 0
+    for (const p of pl.paths) {
+      if (missing.has(p) || !fs.existsSync(p)) { missing.add(p); count++ }
+    }
+    if (count) perPlaylist.push(`${pl.name}: ${count}`)
+  }
+  const win = mainWindow ?? undefined
+  if (!missing.size) {
+    const opts = { type: 'info' as const, message: 'No missing files', detail: 'Every track in your playlists still exists on disk.' }
+    await (win ? dialog.showMessageBox(win, opts) : dialog.showMessageBox(opts))
+    return []
+  }
+  const opts = {
+    type: 'warning' as const,
+    buttons: ['Remove', 'Cancel'],
+    defaultId: 0,
+    cancelId: 1,
+    message: `Remove ${missing.size} missing file${missing.size === 1 ? '' : 's'} from your playlists?`,
+    detail: `${perPlaylist.join('\n')}\n\nIf some of these are on an external or network drive that isn't connected right now, connect it and cancel. Files on disk are never deleted.`,
+  }
+  const { response } = await (win ? dialog.showMessageBox(win, opts) : dialog.showMessageBox(opts))
+  log('find-missing-tracks', { missing: missing.size, removed: response === 0 })
+  return response === 0 ? [...missing] : []
 })
 
 ipcMain.handle('read-audio-file', (_event, filePath: string) => {

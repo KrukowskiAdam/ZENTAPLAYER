@@ -397,6 +397,20 @@ export default function App() {
     }
   }, [addPaths])
 
+  const handleRemoveMissing = useCallback(async () => {
+    const api = (window as any).electronAPI
+    if (!api?.findMissingTracks) return
+    const request = playlistsRef.current.map((p) => ({
+      name: p.name,
+      paths: p.tracks.filter((t) => !t.isStream).map((t) => t.path),
+    }))
+    const missing = new Set<string>(await api.findMissingTracks(request))
+    if (!missing.size) return
+    setPlaylists((prev) => prev.map((p) => ({ ...p, tracks: p.tracks.filter((t) => t.isStream || !missing.has(t.path)) })))
+    setActiveTrack((prev) => (prev && !prev.isStream && missing.has(prev.path) ? null : prev))
+    setSelectedTrack((prev) => (prev && !prev.isStream && missing.has(prev.path) ? null : prev))
+  }, [])
+
   const handleAddPlaylist = useCallback(() => {
     const newId = crypto.randomUUID()
     setPlaylists((prev) => [
@@ -564,12 +578,13 @@ export default function App() {
       api.onMenuAction('menu:add-files', handleAddFiles),
       api.onMenuAction('menu:add-folder', handleAddFolder),
       api.onMenuAction('menu:update-folders', handleUpdateFolders),
+      api.onMenuAction('menu:remove-missing', handleRemoveMissing),
       api.onMenuAction('menu:new-playlist', handleAddPlaylist),
       api.onMenuAction('menu:toggle-play', togglePlayPause),
       api.onMenuAction('menu:toggle-loop', toggleLoopFromMenu),
     ]
     return () => offs.forEach((off) => off?.())
-  }, [handleAddFiles, handleAddFolder, handleUpdateFolders, handleAddPlaylist, togglePlayPause, toggleLoopFromMenu])
+  }, [handleAddFiles, handleAddFolder, handleUpdateFolders, handleRemoveMissing, handleAddPlaylist, togglePlayPause, toggleLoopFromMenu])
 
   const handleTrackFinish = useCallback(() => {
     const track = activeTrackRef.current
