@@ -67,9 +67,13 @@ podpisany przez nas — dlatego MSIX, a nie `.exe`.)
 - [ ] Po publikacji: na stronie dodać przycisk/badge "Get it from Microsoft"
   → https://apps.microsoft.com/detail/9P1GRFG0FLQN i zdjąć notkę
   "coming soon" przy Windows.
-- [ ] Komunikat o braku ffmpeg (`ConvertPromptModal.tsx`) podpowiada
-  `brew install ffmpeg` — na Windows powinien mówić np.
-  `winget install ffmpeg`.
+- [x] **ffmpeg na Windows naprawiony** (commit `0f7e870`, jeszcze NIE w
+  Store — wejdzie z następną aktualizacją 1.0.1): wykrywanie ffmpeg było
+  zepsute na Windows (doklejany `PATH` z `:` przesłaniał prawdziwy `Path`),
+  a komunikat podpowiadał `brew install ffmpeg`. Teraz `ffmpegEnv()` rusza
+  PATH tylko poza Windows, a komunikat na Windows mówi
+  `winget install ffmpeg` + restart aplikacji. Nieprzetestowane na
+  prawdziwym Windowsie.
 - [ ] Przyszłe aktualizacje: podbić `version` w `package.json`, zbudować
   `.appx` w CI, w Partner Center "Update" → nowa submission → Packages.
 - Bonus na później: manifest do **winget** (`microsoft/winget-pkgs`) —
