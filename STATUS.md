@@ -49,18 +49,29 @@ podpisany przez nas — dlatego MSIX, a nie `.exe`.)
   `publisher: CN=AB883AC6-2031-4DD5-87E7-0854C98C8301`,
   `publisherDisplayName: Adam Krukowski` — zgodne z Partner Center →
   Product management → Product identity.
-- [ ] Odpalić CI (nowy tag albo *Run workflow* w Actions), pobrać artefakt
-  `win-store-appx` i wgrać `.appx` w nowym zgłoszeniu (submission) w
-  Partner Center. Do zgłoszenia potrzebne też: opis, zrzuty ekranu (min. 1),
-  kategoria (Music), link do polityki prywatności (appka offline, nic nie
-  zbiera — wystarczy krótka strona na espressoplayer.com), age rating
-  (kwestionariusz IARC w Partner Center).
-- [ ] Capability `runFullTrust` electron-builder dodaje sam — Store zapyta
-  o uzasadnienie przy zgłoszeniu ("desktop app built with Electron, needs
-  file system access to play the user's local music files").
+- [x] **Zgłoszenie (Submission 1) wysłane do certyfikacji** (2026-09-23).
+  Ustawienia: Free, wszystkie rynki, kategoria Music, age rating IARC 3+ /
+  PEGI 3 / ESRB Everyone (Online Content = Yes, bo radio), privacy policy
+  `https://espressoplayer.com/privacy` (nowa strona `website/privacy.html`,
+  wdrożona na Cloudflare Pages), support = GitHub Issues, uzasadnienie
+  `runFullTrust` wpisane w Submission options (pole ma limit znaków —
+  krótka wersja), publikacja automatyczna po certyfikacji.
+  - `.appx` z CI run 35849066937 (tożsamość zweryfikowana w manifeście).
+  - Grafiki do listingu (nie w repo): `~/Downloads/EspressoStore/` —
+    5 screenshotów PNG (z Maca, z okładką Milesa Davisa — jeśli Store je
+    odrzuci, zrobić nowe na Windows), box art 2160², poster 1440×2160,
+    logo 300².
+- [ ] **Czekamy na wynik certyfikacji** (kilka godzin – 3 dni robocze,
+  mail na krukowski.adam@gmail.com). Jeśli odrzucą — przeczytać raport
+  w Partner Center, poprawić i wysłać ponownie.
 - [ ] Po publikacji: na stronie dodać przycisk/badge "Get it from Microsoft"
-  z linkiem do Store (obok albo zamiast `.exe`) i zaktualizować notkę
-  "coming soon".
+  → https://apps.microsoft.com/detail/9P1GRFG0FLQN i zdjąć notkę
+  "coming soon" przy Windows.
+- [ ] Komunikat o braku ffmpeg (`ConvertPromptModal.tsx`) podpowiada
+  `brew install ffmpeg` — na Windows powinien mówić np.
+  `winget install ffmpeg`.
+- [ ] Przyszłe aktualizacje: podbić `version` w `package.json`, zbudować
+  `.appx` w CI, w Partner Center "Update" → nowa submission → Packages.
 - Bonus na później: manifest do **winget** (`microsoft/winget-pkgs`) —
   instalacja przez `winget install` też omija SmartScreen.
 
