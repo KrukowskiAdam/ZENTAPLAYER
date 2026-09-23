@@ -2,6 +2,42 @@
 
 Wszystkie istotne zmiany w Espresso Player są dokumentowane w tym pliku.
 
+## [Unreleased] — planowane 1.0.1
+
+Czeka na zatwierdzenie 1.0.0 w Microsoft Store — potem jedna aktualizacja
+na wszystkie platformy.
+
+### Poprawki
+
+- **ffmpeg nie był wykrywany na Windows** (`0f7e870`). Każde wywołanie
+  ffmpeg doklejało do `PATH` katalogi Homebrew rozdzielone `:`; na Windows
+  prawdziwa zmienna to `Path` (separator `;`), a Node wybierał zepsuty
+  duplikat — zainstalowany ffmpeg był niewidoczny, konwersja i zapis tagów
+  FLAC/WAV nie działały. Teraz `ffmpegEnv()` modyfikuje PATH tylko poza
+  Windows. Komunikat o braku ffmpeg na Windows podpowiada
+  `winget install ffmpeg` + restart aplikacji (zamiast `brew install`).
+- **Martwe wpisy 0 s po konwersji z usuwaniem oryginału** (`64a71b4`).
+  Ponowne dodanie folderu z FLAC-ami już obecnymi na playliście proponowało
+  ich konwersję; z opcją "Delete original" MP3 były dodawane, a stare wpisy
+  zostawały, wskazując na usunięte pliki. Teraz dodawanie pomija ścieżki
+  już obecne na playliście, a po konwersji z usuwaniem każda playlista,
+  która nadal miała usunięty oryginał, dostaje w jego miejsce MP3.
+
+### Nowe
+
+- **File → Remove Missing Files…** (`4c25108`) — usuwa z playlist wpisy,
+  których pliki zniknęły z dysku. Przed usunięciem natywne okno z liczbą
+  brakujących plików per playlista (ochrona przed odłączonym dyskiem
+  zewnętrznym). Pliki na dysku nigdy nie są kasowane.
+
+### Dystrybucja
+
+- **Microsoft Store (MSIX)** — target `appx` w electron-builder, CI buduje
+  `.appx` jako artefakt, tożsamość pakietu z Partner Center. Wersja 1.0.0
+  wysłana do certyfikacji 2026-09-23 (szczegóły w `STATUS.md`, Sesja 6).
+- Strona: polityka prywatności `espressoplayer.com/privacy`, usunięte
+  wzmianki o SignPath.
+
 ## [1.0.0] — 2026-09-21
 
 Pierwsze wydanie produkcyjne. Poniżej pełny log poprawek z sesji hardeningowej

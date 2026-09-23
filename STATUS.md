@@ -74,8 +74,31 @@ podpisany przez nas — dlatego MSIX, a nie `.exe`.)
   PATH tylko poza Windows, a komunikat na Windows mówi
   `winget install ffmpeg` + restart aplikacji. Nieprzetestowane na
   prawdziwym Windowsie.
-- [ ] Przyszłe aktualizacje: podbić `version` w `package.json`, zbudować
-  `.appx` w CI, w Partner Center "Update" → nowa submission → Packages.
+- [x] **Poprawka: martwe wpisy 0 s po konwersji FLAC z usuwaniem**
+  (`64a71b4`) — zgłoszone przez użytkownika. Przyczyna: ponowne dodanie
+  folderu z FLAC-ami już obecnymi na playliście → prompt konwersji → MP3
+  dodane, stare wpisy FLAC zostawały (pliki usunięte). Szczegóły w
+  CHANGELOG. Nieprzetestowane ręcznie w aplikacji (tylko build).
+- [x] **Nowe: File → Remove Missing Files…** (`4c25108`) — z potwierdzeniem.
+  W bibliotece użytkownika Playlist 1 ma 257 nieistniejących plików (np.
+  folder "Blues Riffs For Piano – Ed Baker") — przed kliknięciem Remove
+  upewnić się, że nie są na odłączonym dysku. Nieprzetestowane ręcznie.
+
+### Następna sesja — od czego zacząć
+
+1. **Sprawdzić wynik certyfikacji Store** (mail / Partner Center →
+   Apps and games → Espresso Player). Jeśli odrzucone — przeczytać raport
+   (najbardziej prawdopodobne: screenshoty z Maca / okładka płyty).
+2. Przetestować w `npm run dev` trzy zmiany z 1.0.1 (patrz CHANGELOG
+   [Unreleased]): konwersję z usuwaniem po ponownym dodaniu folderu,
+   Remove Missing Files, i — jeśli jest dostęp do Windowsa — komunikat
+   i wykrywanie ffmpeg.
+3. **Wydać 1.0.1:** podbić `version` w `package.json` (i w stopce strony
+   `website/index.html`), tag `v1.0.1` → CI buduje DMG/EXE/APPX i robi
+   GitHub Release; macOS podpisać/notaryzować lokalnie (`npm run
+   dist:release`) i wrzucić na R2; w Partner Center "Update" → nowa
+   submission → Packages → nowy `.appx`.
+4. Po publikacji w Store: badge "Get it from Microsoft" na stronie.
 - Bonus na później: manifest do **winget** (`microsoft/winget-pkgs`) —
   instalacja przez `winget install` też omija SmartScreen.
 
