@@ -166,6 +166,12 @@ export default function App() {
   }
 
   const addPaths = useCallback(async (paths: string[], targetPlaylistId?: string) => {
+    // Re-adding a folder that's already in the playlist must not re-prompt for its
+    // lossless files — converting them would add the MP3 next to the existing entry.
+    // Tracks already listed are converted via the context menu instead.
+    const destId = targetPlaylistId ?? activePlaylistId
+    const existing = new Set(playlistsRef.current.find((p) => p.id === destId)?.tracks.map((t) => t.path) ?? [])
+    paths = paths.filter((p) => !existing.has(p))
     if (!paths.length) return
     const api = (window as any).electronAPI
     const lossless = api ? paths.filter((p) => LOSSLESS_EXTS.has(getExt(p))) : []
@@ -185,7 +191,7 @@ export default function App() {
       return
     }
     importPaths(paths, targetPlaylistId)
-  }, [importPaths])
+  }, [importPaths, activePlaylistId])
 
   const handleConvertToMp3 = useCallback(async (deleteOriginal: boolean) => {
     if (!pendingConvert) return
@@ -203,6 +209,23 @@ export default function App() {
       )
       const finalPaths = paths.flatMap((p) => replacement.get(p) ?? [p])
       importPaths(finalPaths, targetPlaylistId)
+      if (deleteOriginal) {
+        // Originals that converted cleanly are gone from disk now. Any playlist still
+        // listing one (another playlist sharing the folder, say) would keep a dead,
+        // 0-second entry — swap it for the MP3s there too.
+        const deleted = new Map(
+          results.filter((r) => r.success && !r.error && r.mp3Paths.length).map((r) => [r.originalPath, r.mp3Paths])
+        )
+        const holders = playlistsRef.current
+          .map((p) => ({ id: p.id, mp3s: p.tracks.filter((t) => deleted.has(t.path)).flatMap((t) => deleted.get(t.path)!) }))
+          .filter((h) => h.mp3s.length)
+        if (holders.length) {
+          setPlaylists((prev) => prev.map((p) => ({ ...p, tracks: p.tracks.filter((t) => !deleted.has(t.path)) })))
+          setActiveTrack((prev) => (prev && deleted.has(prev.path) ? null : prev))
+          setSelectedTrack((prev) => (prev && deleted.has(prev.path) ? null : prev))
+          for (const h of holders) importPaths(h.mp3s, h.id)
+        }
+      }
       const failed = results.filter((r) => r.error)
       if (failed.length) {
         alert(
