@@ -51,6 +51,17 @@ jobs:
           name: win-installer
           path: release/*.exe
 
+      # Unsigned MSIX for Microsoft Store submission — the Store re-signs it
+      # with Microsoft's certificate, so it's not attached to the GitHub Release.
+      - name: Build Windows Store package (appx)
+        run: npm run dist:appx
+
+      - name: Upload Store package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: win-store-appx
+          path: release/*.appx
+
   release:
     needs: [build-mac, build-win]
     runs-on: ubuntu-latest

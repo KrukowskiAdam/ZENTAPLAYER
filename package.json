@@ -11,6 +11,7 @@
     "dist:arm": "npm run build && electron-builder --mac --arm64 --publish=never",
     "dist:x64": "npm run build && electron-builder --mac --x64 --publish=never",
     "dist:win": "npm run build && electron-builder --win --x64 --publish=never",
+    "dist:appx": "npm run build && electron-builder --win appx --x64 --publish=never",
     "dist:mas": "npm run build && electron-builder --mac mas --publish=never",
     "dist:release": "npm run build && APPLE_KEYCHAIN_PROFILE=espresso-notary electron-builder --mac --arm64 --x64 --publish=never"
   },
@@ -51,6 +52,13 @@
           ]
         }
       ]
+    },
+    "appx": {
+      "displayName": "Espresso Player",
+      "publisherDisplayName": "Adam Krukowski",
+      "applicationId": "EspressoPlayer",
+      "backgroundColor": "#000000",
+      "languages": ["en-US"]
     },
     "nsis": {
       "oneClick": false,

@@ -1,5 +1,70 @@
 # ZentaPlayer — Status
 
+## Sesja 6 (2026-09-23) — Microsoft Store jako darmowa droga bez SmartScreen
+
+Po odrzuceniu SignPath (patrz Sesja 5) wybrana droga: **Microsoft Store z
+paczką MSIX**. Rejestracja indywidualnego dewelopera w Store jest darmowa,
+a paczki MSIX ze Store **podpisuje sam Microsoft** przy certyfikacji —
+instalacja ze Store nie pokazuje ostrzeżenia SmartScreen. Zero kosztów, bez
+własnego certyfikatu. (Zwykły `.exe` wystawiony w Store musiałby być
+podpisany przez nas — dlatego MSIX, a nie `.exe`.)
+
+### Zrobione
+
+- [x] **Target `appx` w electron-builder** — nowy skrypt `npm run dist:appx`
+  i sekcja `build.appx` w `package.json` (`displayName`,
+  `publisherDisplayName`, `applicationId`, `backgroundColor`, `languages`).
+  Bez certyfikatu electron-builder buduje niepodpisaną paczkę "Windows Store
+  only build" — dokładnie to, czego chce Store.
+- [x] **Grafiki kafelków** w `build/appx/` (`StoreLogo`, `Square44x44Logo`,
+  `Square150x150Logo`, `Wide310x150Logo`) wygenerowane z obecnej ikony
+  ziarna (`assets/icon.icns`, brązowe ziarno na czarnym tle). Bez nich
+  electron-builder wstawiłby domyślne logo Electrona.
+- [x] **CI** — job `build-win` dodatkowo buduje `.appx` i wrzuca go jako
+  artefakt `win-store-appx` (do pobrania z zakładki Actions → run →
+  Artifacts). **Nie** jest dołączany do GitHub Release — niepodpisany MSIX
+  i tak nie da się zainstalować spoza Store.
+  - `.appx` buduje się tylko na Windows (potrzebuje `makeappx` z Windows
+    SDK), więc lokalnie na Macu nie było jak przetestować — pierwszy
+    prawdziwy test to najbliższy run CI.
+- [x] **Usunięte nieaktualne wzmianki o SignPath:**
+  - `CODE_SIGNING.md` — sekcja Windows mówiła, że binarki są podpisywane
+    przez SignPath Foundation (nieprawda po odrzuceniu). Teraz: `.exe`
+    niepodpisany + wersja MSIX podpisywana przez Microsoft w Store.
+  - `website/index.html` — notka pod przyciskiem Windows: zamiast "applying
+    for free code signing via SignPath Foundation" jest "A Microsoft Store
+    version (no warning) is coming soon."
+
+### Do zrobienia (kroki użytkownika)
+
+- [ ] **Założyć konto deweloperskie** w Microsoft Partner Center
+  (storedeveloper.microsoft.com, konto indywidualne, darmowe). Weryfikacja
+  tożsamości może potrwać kilka dni.
+- [ ] **Zarezerwować nazwę aplikacji** "Espresso Player" w Partner Center.
+- [ ] Z Partner Center → *Product management → Product identity* skopiować
+  trzy wartości i wpisać do `build.appx` w `package.json`:
+  - `Package/Identity/Name` → `"identityName"`
+  - `Package/Identity/Publisher` (`CN=...`) → `"publisher"`
+  - `Package/Properties/PublisherDisplayName` → `"publisherDisplayName"`
+  (obecnie jest "Adam Krukowski" — musi się zgadzać z tym w Partner Center)
+  Bez tego Store odrzuci upload paczki (niezgodna tożsamość).
+- [ ] Odpalić CI (nowy tag albo *Run workflow* w Actions), pobrać artefakt
+  `win-store-appx` i wgrać `.appx` w nowym zgłoszeniu (submission) w
+  Partner Center. Do zgłoszenia potrzebne też: opis, zrzuty ekranu (min. 1),
+  kategoria (Music), link do polityki prywatności (appka offline, nic nie
+  zbiera — wystarczy krótka strona na espressoplayer.com), age rating
+  (kwestionariusz IARC w Partner Center).
+- [ ] Capability `runFullTrust` electron-builder dodaje sam — Store zapyta
+  o uzasadnienie przy zgłoszeniu ("desktop app built with Electron, needs
+  file system access to play the user's local music files").
+- [ ] Po publikacji: na stronie dodać przycisk/badge "Get it from Microsoft"
+  z linkiem do Store (obok albo zamiast `.exe`) i zaktualizować notkę
+  "coming soon".
+- Bonus na później: manifest do **winget** (`microsoft/winget-pkgs`) —
+  instalacja przez `winget install` też omija SmartScreen.
+
+---
+
 ## Sesja 5 (2026-09-22) — push do GitHub, build Windows, open source + wniosek SignPath
 
 ### Zrobione
@@ -67,9 +132,10 @@
 
 - **Użytkownik nie zapłaci za certyfikat OV/EV code-signing** (~$220+/rok)
   pod żadnym pozorem, w tym za płatny plan SignPath. Po odrzuceniu wniosku
-  Foundation (patrz wyżej) — **zostajemy jak jest**: `.exe` dalej
-  niepodpisany, z ostrzeżeniem SmartScreen na stronie. Nie proponować
-  ponownie płatnej opcji.
+  Foundation (patrz wyżej) — `.exe` dalej niepodpisany, z ostrzeżeniem
+  SmartScreen na stronie. Nie proponować ponownie płatnej opcji.
+  **Aktualizacja 2026-09-23:** darmowa alternatywa = Microsoft Store (MSIX),
+  patrz Sesja 6.
 - **Możliwy powrót do tematu w przyszłości:** gdy projekt zyska więcej
   gwiazdek/forków/wzmianek zewnętrznych, można ponownie złożyć wniosek do
   SignPath Foundation (signpath.org/apply) — sami zapraszają do ponownej
