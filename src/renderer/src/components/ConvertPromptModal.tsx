@@ -18,6 +18,11 @@ interface Props {
   promptText?: string
 }
 
+const IS_WINDOWS = (window as any).electronAPI?.platform === 'win32'
+// A fresh install only lands on PATH for processes started afterwards, so on Windows the
+// app has to be reopened before it can see ffmpeg; Homebrew's dirs are searched directly.
+const FFMPEG_INSTALL_HINT = IS_WINDOWS ? 'winget install ffmpeg' : 'brew install ffmpeg'
+
 function baseName(p: string): string {
   return p.split(/[\\/]/).pop() ?? p
 }
@@ -110,7 +115,7 @@ export default function ConvertPromptModal({
 
               {ffmpegAvailable === false ? (
                 <div style={styles.warning}>
-                  ffmpeg not found — install it to enable conversion (<code>brew install ffmpeg</code>).
+                  ffmpeg not found — install it to enable conversion (<code>{FFMPEG_INSTALL_HINT}</code>){IS_WINDOWS && ', then restart Espresso Player'}.
                   These files can still be added in their original format.
                 </div>
               ) : (

@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  platform: process.platform,
   openFiles: () => ipcRenderer.invoke('open-files'),
   openFolder: (): Promise<{ folders: string[]; files: string[] }> => ipcRenderer.invoke('open-folder'),
   scanPaths: (paths: string[]): Promise<string[]> => ipcRenderer.invoke('scan-paths', paths),

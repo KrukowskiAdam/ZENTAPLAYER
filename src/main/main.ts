@@ -703,6 +703,14 @@ function findFfmpeg(): string {
   return 'ffmpeg'
 }
 
+// GUI apps launched from Finder don't inherit the shell PATH, so Homebrew's ffmpeg dirs are
+// prepended on macOS. Windows is left untouched: its variable is `Path` with `;` separators,
+// and adding a colon-joined `PATH` next to it would shadow the real one and hide ffmpeg.
+function ffmpegEnv(): NodeJS.ProcessEnv {
+  if (process.platform === 'win32') return process.env
+  return { ...process.env, PATH: `/opt/homebrew/bin:/usr/local/bin:/usr/bin:${process.env.PATH}` }
+}
+
 function writeTagsFfmpeg(update: TagWriteUpdate): Promise<{ success: boolean; error?: string }> {
   return new Promise((resolve) => {
     const bin = findFfmpeg()
@@ -716,7 +724,7 @@ function writeTagsFfmpeg(update: TagWriteUpdate): Promise<{ success: boolean; er
     if (update.year !== undefined) args.push('-metadata', `date=${update.year}`)
     if (update.genre !== undefined) args.push('-metadata', `genre=${update.genre}`)
     args.push(tmpPath)
-    const env = { ...process.env, PATH: `/opt/homebrew/bin:/usr/local/bin:/usr/bin:${process.env.PATH}` }
+    const env = ffmpegEnv()
     const proc = spawn(bin, args, { env })
     let errOut = ''
     proc.stderr.on('data', (d: Buffer) => { errOut += d })
@@ -741,7 +749,7 @@ function writeTagsFfmpeg(update: TagWriteUpdate): Promise<{ success: boolean; er
 function checkFfmpegAvailable(): Promise<boolean> {
   return new Promise((resolve) => {
     const bin = findFfmpeg()
-    const env = { ...process.env, PATH: `/opt/homebrew/bin:/usr/local/bin:/usr/bin:${process.env.PATH}` }
+    const env = ffmpegEnv()
     const proc = spawn(bin, ['-version'], { env })
     proc.on('error', () => resolve(false))
     proc.on('close', (code) => resolve(code === 0))
@@ -794,7 +802,7 @@ async function convertToMp3One(srcPath: string): Promise<{ path: string; success
     counter++
   }
   const bin = findFfmpeg()
-  const env = { ...process.env, PATH: `/opt/homebrew/bin:/usr/local/bin:/usr/bin:${process.env.PATH}` }
+  const env = ffmpegEnv()
   const buildArgs = (withCover: boolean) => [
     '-y',
     '-i', srcPath,
@@ -972,7 +980,7 @@ async function splitAndConvertByCue(
 ): Promise<{ mp3Paths: string[]; allOk: boolean; error?: string }> {
   const dir = path.dirname(srcPath)
   const bin = findFfmpeg()
-  const env = { ...process.env, PATH: `/opt/homebrew/bin:/usr/local/bin:/usr/bin:${process.env.PATH}` }
+  const env = ffmpegEnv()
 
   let coverPath: string | null = null
   try {
