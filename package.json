@@ -54,6 +54,8 @@
       ]
     },
     "appx": {
+      "identityName": "AdamKrukowski.EspressoPlayer",
+      "publisher": "CN=AB883AC6-2031-4DD5-87E7-0854C98C8301",
       "displayName": "Espresso Player",
       "publisherDisplayName": "Adam Krukowski",
       "applicationId": "EspressoPlayer",

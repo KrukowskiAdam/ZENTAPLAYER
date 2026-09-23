@@ -37,17 +37,18 @@ podpisany przez nas — dlatego MSIX, a nie `.exe`.)
 
 ### Do zrobienia (kroki użytkownika)
 
-- [ ] **Założyć konto deweloperskie** w Microsoft Partner Center
-  (storedeveloper.microsoft.com, konto indywidualne, darmowe). Weryfikacja
-  tożsamości może potrwać kilka dni.
-- [ ] **Zarezerwować nazwę aplikacji** "Espresso Player" w Partner Center.
-- [ ] Z Partner Center → *Product management → Product identity* skopiować
-  trzy wartości i wpisać do `build.appx` w `package.json`:
-  - `Package/Identity/Name` → `"identityName"`
-  - `Package/Identity/Publisher` (`CN=...`) → `"publisher"`
-  - `Package/Properties/PublisherDisplayName` → `"publisherDisplayName"`
-  (obecnie jest "Adam Krukowski" — musi się zgadzać z tym w Partner Center)
-  Bez tego Store odrzuci upload paczki (niezgodna tożsamość).
+- [x] **Konto deweloperskie** w Microsoft Partner Center założone
+  (2026-09-23, konto indywidualne, darmowe, krukowski.adam@gmail.com,
+  program "Windows" aktywny).
+- [x] **Nazwa "Espresso Player" zarezerwowana** jako *MSIX or PWA app*.
+  - Store ID: `9P1GRFG0FLQN`
+  - Link do Store: https://apps.microsoft.com/detail/9P1GRFG0FLQN
+  - Package Family Name: `AdamKrukowski.EspressoPlayer_qehzwz6y210qj`
+- [x] **Tożsamość pakietu wpisana do `build.appx` w `package.json`:**
+  `identityName: AdamKrukowski.EspressoPlayer`,
+  `publisher: CN=AB883AC6-2031-4DD5-87E7-0854C98C8301`,
+  `publisherDisplayName: Adam Krukowski` — zgodne z Partner Center →
+  Product management → Product identity.
 - [ ] Odpalić CI (nowy tag albo *Run workflow* w Actions), pobrać artefakt
   `win-store-appx` i wgrać `.appx` w nowym zgłoszeniu (submission) w
   Partner Center. Do zgłoszenia potrzebne też: opis, zrzuty ekranu (min. 1),
